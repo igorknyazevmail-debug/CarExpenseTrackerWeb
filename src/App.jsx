@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import './App.css'
+import AuthScreen from './AuthScreen'
+import { supabase } from './lib/supabaseClient'
+import {
+  getAllExpenses,
+  saveExpense,
+  deleteExpense,
+} from './db'
 
 const initialExpenses = [
   {
@@ -71,27 +78,69 @@ function getTodayDate() {
   return `${year}-${month}-${day}`
 }
 function App() {
-const [expenses, setExpenses] = useState(() => {
-  const savedExpenses = localStorage.getItem(STORAGE_KEY)
+  const [session, setSession] = useState(null)
+const [authLoading, setAuthLoading] = useState(true)
 
-  if (!savedExpenses) {
-    return initialExpenses
+useEffect(() => {
+  let mounted = true
+
+  supabase.auth
+    .getSession()
+    .then(({ data }) => {
+      if (!mounted) return
+
+      setSession(data.session)
+      setAuthLoading(false)
+    })
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange(
+    (_event, currentSession) => {
+      if (!mounted) return
+
+      setSession(currentSession)
+      setAuthLoading(false)
+    }
+  )
+
+  return () => {
+    mounted = false
+    subscription.unsubscribe()
+  }
+}, [])
+
+const [expenses, setExpenses] = useState([])
+const [expensesLoading, setExpensesLoading] = useState(true)
+
+useEffect(() => {
+  async function loadExpenses() {
+    if (!session) {
+      setExpenses([])
+      setExpensesLoading(false)
+      return
+    }
+
+    try {
+      setExpensesLoading(true)
+
+      const data = await getAllExpenses()
+
+      setExpenses(data)
+    } catch (error) {
+      console.error('Ошибка загрузки расходов:', error)
+    } finally {
+      setExpensesLoading(false)
+    }
   }
 
-  try {
-const parsed = JSON.parse(savedExpenses)
+  loadExpenses()
+}, [session?.user?.id])
 
-return parsed.map((expense) => ({
-  ...expense,
-  object: expense.object || 'citroen',
-}))
-  } catch {
-    return initialExpenses
-  }
-})
-  const [showForm, setShowForm] = useState(false)
-  const [selectedObject, setSelectedObject] = useState('citroen')
+const [showForm, setShowForm] = useState(false)
+const [selectedObject, setSelectedObject] = useState('citroen')
 const [editingExpenseId, setEditingExpenseId] = useState(null)
+
   const [form, setForm] = useState({
   date: getTodayDate(),
   category: 'Запчасти',
@@ -99,12 +148,7 @@ const [editingExpenseId, setEditingExpenseId] = useState(null)
   mileage: '',
   amount: '',
 })
-useEffect(() => {
-  localStorage.setItem(
-    STORAGE_KEY,
-    JSON.stringify(expenses)
-  )
-}, [expenses])
+
 const filteredExpenses = useMemo(() => {
   return expenses.filter(
     (expense) => expense.object === selectedObject
@@ -246,6 +290,25 @@ function handleDeleteExpense(expense) {
     current.filter((item) => item.id !== expense.id)
   )
 }
+
+if (authLoading) {
+  return (
+    <main className="app">
+      <p>Проверка входа...</p>
+    </main>
+  )
+}
+
+if (!session) {
+  return <AuthScreen />
+}
+if (expensesLoading) {
+  return (
+    <main className="app">
+      <p>Загрузка расходов...</p>
+    </main>
+  )
+}
   return (
     <main className="app">
       <header className="topbar">
@@ -254,12 +317,21 @@ function handleDeleteExpense(expense) {
           <p>Учёт расходов на автомобиль</p>
         </div>
 
-        <button
-          className="primary-button"
-          onClick={handleOpenAddForm}
-        >
-          + Добавить расход
-        </button>
+        <div className="header-actions">
+  <button
+    className="primary-button"
+    onClick={handleOpenAddForm}
+  >
+    + Добавить расход
+  </button>
+
+  <button
+    className="secondary-button"
+    onClick={() => supabase.auth.signOut()}
+  >
+    Выйти
+  </button>
+</div>
       </header>
 
       {showForm && (
