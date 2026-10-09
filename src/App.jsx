@@ -137,6 +137,10 @@ useEffect(() => {
   loadExpenses()
 }, [session?.user?.id])
 
+async function refreshExpenses() {
+  const data = await getAllExpenses()
+  setExpenses(data)
+}
 const [showForm, setShowForm] = useState(false)
 const [selectedObject, setSelectedObject] = useState('citroen')
 const [editingExpenseId, setEditingExpenseId] = useState(null)
@@ -215,6 +219,7 @@ function handleOpenAddForm() {
 
 function handleEditExpense(expense) {
   setEditingExpenseId(expense.id)
+setSelectedObject(expense.object)
 
   setForm({
     date: expense.date,
@@ -231,9 +236,9 @@ function handleEditExpense(expense) {
     behavior: 'smooth',
   })
 }
- function handleSubmit(event) {
+async function handleSubmit(event) {
   event.preventDefault()
-
+const objectToKeep = selectedObject
   const amount = Number(form.amount)
 
   if (!form.date || !form.description.trim() || amount <= 0) {
@@ -241,7 +246,7 @@ function handleEditExpense(expense) {
   }
 
   const expenseData = {
-      object: selectedObject,
+    object: selectedObject,
     date: form.date,
     category: form.category,
     description: form.description.trim(),
@@ -252,32 +257,30 @@ function handleEditExpense(expense) {
     amount,
   }
 
-  if (editingExpenseId) {
-    setExpenses((current) =>
-      current.map((expense) =>
-        expense.id === editingExpenseId
-          ? {
-              ...expense,
-              ...expenseData,
-            }
-          : expense
-      )
-    )
-  } else {
-    setExpenses((current) => [
-      {
-        id: Date.now(),
+  try {
+    if (editingExpenseId) {
+      await saveExpense({
+        id: editingExpenseId,
         ...expenseData,
-      },
-      ...current,
-    ])
-  }
+      })
+    } else {
+      await saveExpense(expenseData)
+    }
 
-  resetForm()
-  setEditingExpenseId(null)
-  setShowForm(false)
+    await refreshExpenses()
+setSelectedObject(objectToKeep)
+    resetForm()
+    setEditingExpenseId(null)
+    setShowForm(false)
+  } catch (error) {
+    console.error('Ошибка сохранения расхода:', error)
+
+    window.alert(
+      'Не удалось сохранить расход. Попробуйте ещё раз.'
+    )
+  }
 }
-function handleDeleteExpense(expense) {
+async function handleDeleteExpense(expense) {
   const confirmed = window.confirm(
     `Удалить расход "${expense.description}" на ${formatMoney(expense.amount)}?`
   )
@@ -286,9 +289,16 @@ function handleDeleteExpense(expense) {
     return
   }
 
-  setExpenses((current) =>
-    current.filter((item) => item.id !== expense.id)
-  )
+  try {
+    await deleteExpense(expense.id)
+    await refreshExpenses()
+  } catch (error) {
+    console.error('Ошибка удаления расхода:', error)
+
+    window.alert(
+      'Не удалось удалить расход. Попробуйте ещё раз.'
+    )
+  }
 }
 
 if (authLoading) {
