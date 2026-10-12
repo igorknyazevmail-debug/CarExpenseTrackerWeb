@@ -338,7 +338,10 @@ if (expensesLoading) {
     <main className="app">
       <header className="topbar">
         <div>
+<div className="app-title-row">
   <h1>Car Expenses</h1>
+  <span className="app-version">v1.0</span>
+</div>
 </div>
 
         <div className="header-actions">

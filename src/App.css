@@ -405,3 +405,14 @@ tbody tr:hover {
   gap: 10px;
   align-items: center;
 }
+.app-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.app-version {
+  color: #9ca3af;
+  font-size: 14px;
+  font-weight: 600;
+}
