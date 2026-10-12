@@ -198,6 +198,18 @@ for (const expense of filteredExpenses) {
       [name]: value,
     }))
   }
+
+  function getLastMileage() {
+  const lastExpenseWithMileage = expenses.find(
+    (expense) =>
+      expense.object === 'citroen' &&
+      expense.mileage !== null &&
+      expense.mileage !== undefined
+  )
+
+  return lastExpenseWithMileage?.mileage ?? ''
+}
+
 function resetForm() {
   setForm({
     date: getTodayDate(),
@@ -206,7 +218,10 @@ function resetForm() {
         ? 'Инструмент'
         : 'Запчасти',
     description: '',
-    mileage: '',
+mileage:
+  selectedObject === 'citroen'
+    ? getLastMileage()
+    : '',
     amount: '',
   })
 }
@@ -241,9 +256,9 @@ async function handleSubmit(event) {
 const objectToKeep = selectedObject
   const amount = Number(form.amount)
 
-  if (!form.date || !form.description.trim() || amount <= 0) {
-    return
-  }
+  if (!form.date || amount <= 0) {
+  return
+}
 
   const expenseData = {
     object: selectedObject,
@@ -323,9 +338,8 @@ if (expensesLoading) {
     <main className="app">
       <header className="topbar">
         <div>
-          <h1>Car Expenses</h1>
-          <p>Учёт расходов на автомобиль</p>
-        </div>
+  <h1>Car Expenses</h1>
+</div>
 
         <div className="header-actions">
   <button
@@ -404,7 +418,7 @@ if (expensesLoading) {
     ? 'Например: набор ключей'
     : 'Например: моторное масло'
 }
-                required
+
               />
             </label>
 
@@ -472,7 +486,7 @@ if (expensesLoading) {
       }
     >
       <option value="citroen">
-        Citroën C4 1.6
+        Citroën
       </option>
 
       <option value="garage">
