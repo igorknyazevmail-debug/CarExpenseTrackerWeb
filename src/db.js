@@ -379,7 +379,7 @@ export async function saveMaintenanceTask(task) {
       task.lastServiceMileage == null
         ? null
         : Number(task.lastServiceMileage),
-        
+
 next_service_mileage:
   task.nextServiceMileage === '' ||
   task.nextServiceMileage == null
@@ -443,6 +443,165 @@ export async function deleteMaintenanceTask(taskId) {
   if (error) {
     console.error(
       'Ошибка удаления регламентной работы:',
+      error
+    )
+    throw error
+  }
+}
+export async function getCurrentWorks() {
+  const { data, error } = await supabase
+    .from('current_works')
+    .select('*')
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error(
+      'Ошибка загрузки текущих работ:',
+      error
+    )
+    throw error
+  }
+
+return (data || []).map((item) => ({
+  id: item.id,
+  text: item.text,
+  priority: item.priority || 'medium',
+}))
+}
+
+export async function addCurrentWork(
+  text,
+  priority = 'medium'
+) {
+  const { data, error } = await supabase
+    .from('current_works')
+    .insert({
+      text: text.trim(),
+        priority: priority,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error(
+      'Ошибка добавления текущей работы:',
+      error
+    )
+    throw error
+  }
+
+  return data.id
+}
+
+export async function deleteCurrentWork(id) {
+  const { error } = await supabase
+    .from('current_works')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error(
+      'Ошибка удаления текущей работы:',
+      error
+    )
+    throw error
+  }
+}
+
+export async function updateCurrentWorkPriority(
+  id,
+  priority
+) {
+  const { error } = await supabase
+    .from('current_works')
+    .update({
+      priority,
+    })
+    .eq('id', id)
+
+  if (error) {
+    console.error(
+      'Ошибка изменения приоритета:',
+      error
+    )
+    throw error
+  }
+}
+
+export async function getPurchaseItems() {
+  const { data, error } = await supabase
+    .from('purchase_items')
+    .select('*')
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error(
+      'Ошибка загрузки списка покупок:',
+      error
+    )
+    throw error
+  }
+
+  return (data || []).map((item) => ({
+    id: item.id,
+    text: item.text,
+    priority: item.priority || 'medium',
+  }))
+}
+
+export async function addPurchaseItem(
+  text,
+  priority = 'medium'
+) {
+  const { data, error } = await supabase
+    .from('purchase_items')
+    .insert({
+      text: text.trim(),
+      priority,
+    })
+    .select()
+    .single()
+
+  if (error) {
+    console.error(
+      'Ошибка добавления покупки:',
+      error
+    )
+    throw error
+  }
+
+  return data.id
+}
+
+export async function updatePurchaseItemPriority(
+  id,
+  priority
+) {
+  const { error } = await supabase
+    .from('purchase_items')
+    .update({
+      priority,
+    })
+    .eq('id', id)
+
+  if (error) {
+    console.error(
+      'Ошибка изменения приоритета покупки:',
+      error
+    )
+    throw error
+  }
+}
+
+export async function deletePurchaseItem(id) {
+  const { error } = await supabase
+    .from('purchase_items')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error(
+      'Ошибка удаления покупки:',
       error
     )
     throw error

@@ -567,3 +567,104 @@ tbody tr:hover {
 .sort-arrow {
   font-size: 14px;
 }
+.current-work-form {
+  display: flex;
+  gap: 10px;
+  padding: 20px;
+}
+
+.current-work-form input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+}
+
+.current-work-list {
+  padding: 0 20px 20px;
+}
+
+.current-work-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.current-work-priority-select {
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: white;
+}
+
+.current-work-text {
+  flex: 1;
+}
+
+.current-work-priority-dot {
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
+
+  flex: 0 0 12px;
+
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+
+  cursor: pointer;
+}
+
+.current-work-priority-dot:hover {
+  transform: scale(1.25);
+}
+
+.current-work-priority-dot.high {
+  background: #dc2626;
+}
+
+.current-work-priority-dot.medium {
+  background: #f59e0b;
+}
+
+.current-work-priority-dot.low {
+  background: #16a34a;
+}
+
+.current-work-priority-dot.buy {
+  background: #2563eb;
+}
+
+.current-work-priority-dot {
+  width: 12px;
+  height: 12px;
+  min-width: 12px;
+  min-height: 12px;
+
+  flex: 0 0 12px;
+
+  border-radius: 50%;
+  display: inline-block;
+}
+.current-work-summary {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 14px 26px 0;
+  flex-wrap: wrap;
+}
+
+.current-work-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+}
+
+.current-work-summary-item strong {
+  font-size: 15px;
+}

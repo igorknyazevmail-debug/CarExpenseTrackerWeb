@@ -14,6 +14,14 @@ import {
   getMaintenanceTasks,
 saveMaintenanceTask,
 deleteMaintenanceTask,
+getCurrentWorks,
+addCurrentWork,
+deleteCurrentWork,
+updateCurrentWorkPriority,
+getPurchaseItems,
+addPurchaseItem,
+updatePurchaseItemPriority,
+deletePurchaseItem,
 } from './db'
 
 const initialExpenses = [
@@ -123,6 +131,23 @@ const [expensesLoading, setExpensesLoading] = useState(true)
 const [installedParts, setInstalledParts] = useState([])
 const [installedPartsLoading, setInstalledPartsLoading] = useState(true)
 const [maintenanceTasks, setMaintenanceTasks] = useState([])
+const [currentWorks, setCurrentWorks] = useState([])
+const [currentWorksLoading, setCurrentWorksLoading] =
+  useState(true)
+
+const [currentWorkText, setCurrentWorkText] =
+  useState('')
+  const [currentWorkPriority, setCurrentWorkPriority] =
+  useState('medium')
+  const [purchaseItems, setPurchaseItems] = useState([])
+const [purchaseItemsLoading, setPurchaseItemsLoading] =
+  useState(true)
+
+const [purchaseText, setPurchaseText] =
+  useState('')
+
+const [purchasePriority, setPurchasePriority] =
+  useState('medium')
 const [maintenanceLoading, setMaintenanceLoading] = useState(true)
 const [maintenanceSortOrder, setMaintenanceSortOrder] =
   useState('asc')
@@ -236,6 +261,102 @@ useEffect(() => {
 
   loadMaintenanceTasks()
 }, [session?.user?.id])
+
+useEffect(() => {
+  async function loadCurrentWorks() {
+    if (!session) {
+      setCurrentWorks([])
+      setCurrentWorksLoading(false)
+      return
+    }
+
+    try {
+      setCurrentWorksLoading(true)
+
+      const data = await getCurrentWorks()
+
+      setCurrentWorks(data)
+    } catch (error) {
+      console.error(
+        'Ошибка загрузки текущих работ:',
+        error
+      )
+    } finally {
+      setCurrentWorksLoading(false)
+    }
+  }
+
+  loadCurrentWorks()
+}, [session?.user?.id])
+
+useEffect(() => {
+  async function loadPurchaseItems() {
+    if (!session) {
+      setPurchaseItems([])
+      setPurchaseItemsLoading(false)
+      return
+    }
+
+    try {
+      setPurchaseItemsLoading(true)
+
+      const data = await getPurchaseItems()
+
+      setPurchaseItems(data)
+    } catch (error) {
+      console.error(
+        'Ошибка загрузки списка покупок:',
+        error
+      )
+    } finally {
+      setPurchaseItemsLoading(false)
+    }
+  }
+
+  loadPurchaseItems()
+}, [session?.user?.id])
+
+async function refreshPurchaseItems() {
+  const data = await getPurchaseItems()
+  setPurchaseItems(data)
+}
+
+async function refreshCurrentWorks() {
+  const data = await getCurrentWorks()
+  setCurrentWorks(data)
+}
+
+const currentWorkCounts = {
+  high: currentWorks.filter(
+    (item) => item.priority === 'high'
+  ).length,
+
+  medium: currentWorks.filter(
+    (item) => item.priority === 'medium'
+  ).length,
+
+  low: currentWorks.filter(
+    (item) => item.priority === 'low'
+  ).length,
+
+  buy: currentWorks.filter(
+    (item) => item.priority === 'buy'
+  ).length,
+}
+
+const purchaseCounts = {
+  high: purchaseItems.filter(
+    (item) => item.priority === 'high'
+  ).length,
+
+  medium: purchaseItems.filter(
+    (item) => item.priority === 'medium'
+  ).length,
+
+  low: purchaseItems.filter(
+    (item) => item.priority === 'low'
+  ).length,
+}
 
 async function refreshMaintenanceTasks() {
   const data = await getMaintenanceTasks()
@@ -771,6 +892,151 @@ async function handleMaintenanceSubmit(event) {
   }
 }
 
+async function handleAddCurrentWork(event) {
+  event.preventDefault()
+
+  const text = currentWorkText.trim()
+
+  if (!text) {
+    return
+  }
+
+  try {
+await addCurrentWork(
+  text,
+  currentWorkPriority
+)
+    await refreshCurrentWorks()
+
+    setCurrentWorkText('')
+    setCurrentWorkPriority('medium')
+  } catch (error) {
+    console.error(
+      'Ошибка добавления текущей работы:',
+      error
+    )
+  }
+}
+
+async function handleChangeCurrentWorkPriority(item) {
+ const priorityCycle = {
+  high: 'medium',
+  medium: 'low',
+  low: 'buy',
+  buy: 'high',
+}
+
+  const nextPriority =
+    priorityCycle[item.priority] || 'medium'
+
+  try {
+    await updateCurrentWorkPriority(
+      item.id,
+      nextPriority
+    )
+
+    setCurrentWorks((current) =>
+      current.map((work) =>
+        work.id === item.id
+          ? {
+              ...work,
+              priority: nextPriority,
+            }
+          : work
+      )
+    )
+  } catch (error) {
+    console.error(
+      'Ошибка изменения приоритета:',
+      error
+    )
+  }
+}
+
+async function handleDeleteCurrentWork(item) {
+  try {
+    await deleteCurrentWork(item.id)
+    await refreshCurrentWorks()
+  } catch (error) {
+    console.error(
+      'Ошибка удаления текущей работы:',
+      error
+    )
+  }
+}
+async function handleAddPurchaseItem(event) {
+  event.preventDefault()
+
+  const text = purchaseText.trim()
+
+  if (!text) {
+    return
+  }
+
+  try {
+    await addPurchaseItem(
+      text,
+      purchasePriority
+    )
+
+    await refreshPurchaseItems()
+
+    setPurchaseText('')
+    setPurchasePriority('medium')
+  } catch (error) {
+    console.error(
+      'Ошибка добавления покупки:',
+      error
+    )
+  }
+}
+
+async function handleChangePurchasePriority(item) {
+  const priorityCycle = {
+    high: 'medium',
+    medium: 'low',
+    low: 'high',
+  }
+
+  const nextPriority =
+    priorityCycle[item.priority] || 'medium'
+
+  try {
+    await updatePurchaseItemPriority(
+      item.id,
+      nextPriority
+    )
+
+    setPurchaseItems((current) =>
+      current.map((purchase) =>
+        purchase.id === item.id
+          ? {
+              ...purchase,
+              priority: nextPriority,
+            }
+          : purchase
+      )
+    )
+  } catch (error) {
+    console.error(
+      'Ошибка изменения приоритета покупки:',
+      error
+    )
+  }
+}
+
+async function handleDeletePurchaseItem(item) {
+  try {
+    await deletePurchaseItem(item.id)
+    await refreshPurchaseItems()
+  } catch (error) {
+    console.error(
+      'Ошибка удаления покупки:',
+      error
+    )
+  }
+}
+
 async function handleSubmit(event) {
   event.preventDefault()
 const objectToKeep = selectedObject
@@ -1074,6 +1340,30 @@ citroenSection === 'parts' ? (
   onClick={() => setCitroenSection('maintenance')}
 >
   Регламентные работы
+</button>
+
+<button
+  type="button"
+  className={
+    citroenSection === 'current'
+      ? 'section-tab active'
+      : 'section-tab'
+  }
+  onClick={() => setCitroenSection('current')}
+>
+  Текущие работы
+</button>
+
+<button
+  type="button"
+  className={
+    citroenSection === 'buy'
+      ? 'section-tab active'
+      : 'section-tab'
+  }
+  onClick={() => setCitroenSection('buy')}
+>
+  Купить
 </button>
 
   </div>
@@ -1713,6 +2003,279 @@ citroenSection === 'parts' ? (
               )}
             </tbody>
           </table>
+        </div>
+      )}
+    </section>
+  )}
+{selectedObject === 'citroen' &&
+  citroenSection === 'current' && (
+    <section className="expenses-section">
+      <div className="section-header">
+        <h2>Текущие работы</h2>
+      </div>
+<div className="current-work-summary">
+  <div className="current-work-summary-item">
+    <span className="current-work-priority-dot high" />
+    <span>Высокий</span>
+    <strong>{currentWorkCounts.high}</strong>
+  </div>
+
+  <div className="current-work-summary-item">
+    <span className="current-work-priority-dot medium" />
+    <span>Средний</span>
+    <strong>{currentWorkCounts.medium}</strong>
+  </div>
+
+  <div className="current-work-summary-item">
+    <span className="current-work-priority-dot low" />
+    <span>Низкий</span>
+    <strong>{currentWorkCounts.low}</strong>
+  </div>
+
+  <div className="current-work-summary-item">
+    <span className="current-work-priority-dot buy" />
+    <span>Докупить</span>
+    <strong>{currentWorkCounts.buy}</strong>
+  </div>
+</div>
+      <form
+        className="current-work-form"
+        onSubmit={handleAddCurrentWork}
+      >
+        <input
+          type="text"
+          value={currentWorkText}
+          onChange={(event) =>
+            setCurrentWorkText(event.target.value)
+          }
+          placeholder="Например: заменить прокладку коллектора"
+        />
+<select
+  value={currentWorkPriority}
+  onChange={(event) =>
+    setCurrentWorkPriority(event.target.value)
+  }
+  className="current-work-priority-select"
+>
+  <option value="high">
+    Высокий
+  </option>
+
+  <option value="medium">
+    Средний
+  </option>
+
+  <option value="low">
+    Низкий
+  </option>
+
+  <option value="buy">
+  Докупить
+</option>
+
+</select>
+        <button
+          type="submit"
+          className="primary-button"
+        >
+          Добавить
+        </button>
+      </form>
+
+      {currentWorksLoading ? (
+        <p style={{ padding: '20px' }}>
+          Загрузка...
+        </p>
+      ) : (
+        <div className="current-work-list">
+          {[...currentWorks]
+  .sort((a, b) => {
+    const priorityOrder = {
+  high: 1,
+  medium: 2,
+  low: 3,
+  buy: 4,
+}
+
+    return (
+      priorityOrder[a.priority] -
+      priorityOrder[b.priority]
+    )
+  })
+  .map((item) => (
+    <div
+      key={item.id}
+      className="current-work-item"
+    >
+<button
+  type="button"
+  className={`current-work-priority-dot ${item.priority}`}
+  onClick={() =>
+    handleChangeCurrentWorkPriority(item)
+  }
+  title={
+  item.priority === 'high'
+    ? 'Высокий приоритет — нажмите, чтобы изменить'
+    : item.priority === 'medium'
+      ? 'Средний приоритет — нажмите, чтобы изменить'
+      : item.priority === 'low'
+        ? 'Низкий приоритет — нажмите, чтобы изменить'
+        : 'Докупить — нажмите, чтобы изменить'
+}
+  aria-label="Изменить приоритет"
+/>
+
+  <span className="current-work-text">
+    {item.text}
+  </span>
+
+              <button
+                type="button"
+                className="delete-button"
+                onClick={() =>
+                  handleDeleteCurrentWork(item)
+                }
+              >
+                Удалить
+              </button>
+            </div>
+          ))}
+
+          {currentWorks.length === 0 && (
+            <p>Текущих работ пока нет.</p>
+          )}
+        </div>
+      )}
+    </section>
+  )}
+
+{selectedObject === 'citroen' &&
+  citroenSection === 'buy' && (
+    <section className="expenses-section">
+      <div className="section-header">
+        <h2>Купить</h2>
+      </div>
+
+      <div className="current-work-summary">
+        <div className="current-work-summary-item">
+          <span className="current-work-priority-dot high" />
+          <span>Высокий</span>
+          <strong>{purchaseCounts.high}</strong>
+        </div>
+
+        <div className="current-work-summary-item">
+          <span className="current-work-priority-dot medium" />
+          <span>Средний</span>
+          <strong>{purchaseCounts.medium}</strong>
+        </div>
+
+        <div className="current-work-summary-item">
+          <span className="current-work-priority-dot low" />
+          <span>Низкий</span>
+          <strong>{purchaseCounts.low}</strong>
+        </div>
+      </div>
+
+      <form
+        className="current-work-form"
+        onSubmit={handleAddPurchaseItem}
+      >
+        <input
+          type="text"
+          value={purchaseText}
+          onChange={(event) =>
+            setPurchaseText(event.target.value)
+          }
+          placeholder="Например: купить прокладку коллектора"
+        />
+
+        <select
+          value={purchasePriority}
+          onChange={(event) =>
+            setPurchasePriority(event.target.value)
+          }
+          className="current-work-priority-select"
+        >
+          <option value="high">
+            Высокий
+          </option>
+
+          <option value="medium">
+            Средний
+          </option>
+
+          <option value="low">
+            Низкий
+          </option>
+        </select>
+
+        <button
+          type="submit"
+          className="primary-button"
+        >
+          Добавить
+        </button>
+      </form>
+
+      {purchaseItemsLoading ? (
+        <p style={{ padding: '20px' }}>
+          Загрузка...
+        </p>
+      ) : (
+        <div className="current-work-list">
+          {[...purchaseItems]
+            .sort((a, b) => {
+              const priorityOrder = {
+                high: 1,
+                medium: 2,
+                low: 3,
+              }
+
+              return (
+                priorityOrder[a.priority] -
+                priorityOrder[b.priority]
+              )
+            })
+            .map((item) => (
+              <div
+                key={item.id}
+                className="current-work-item"
+              >
+                <button
+                  type="button"
+                  className={`current-work-priority-dot ${item.priority}`}
+                  onClick={() =>
+                    handleChangePurchasePriority(item)
+                  }
+                  title={
+                    item.priority === 'high'
+                      ? 'Высокий приоритет — нажмите, чтобы изменить'
+                      : item.priority === 'low'
+                        ? 'Низкий приоритет — нажмите, чтобы изменить'
+                        : 'Средний приоритет — нажмите, чтобы изменить'
+                  }
+                  aria-label="Изменить приоритет"
+                />
+
+                <span className="current-work-text">
+                  {item.text}
+                </span>
+
+                <button
+                  type="button"
+                  className="delete-button"
+                  onClick={() =>
+                    handleDeletePurchaseItem(item)
+                  }
+                >
+                  Удалить
+                </button>
+              </div>
+            ))}
+
+          {purchaseItems.length === 0 && (
+            <p>Список покупок пока пуст.</p>
+          )}
         </div>
       )}
     </section>
