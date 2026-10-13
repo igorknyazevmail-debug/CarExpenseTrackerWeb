@@ -11,6 +11,7 @@ import {
   saveInstalledPart,
   deleteInstalledPart,
   uploadInstalledPartPhotos,
+  deleteInstalledPartPhoto,
   getMaintenanceTasks,
 saveMaintenanceTask,
 deleteMaintenanceTask,
@@ -169,6 +170,7 @@ const [showPartForm, setShowPartForm] = useState(false)
 const [editingPartId, setEditingPartId] = useState(null)
 const [newPartPhotos, setNewPartPhotos] = useState([])
 const [selectedInstalledPart, setSelectedInstalledPart] = useState(null)
+const [openedPartPhoto, setOpenedPartPhoto] = useState(null)
 const [replacementSortOrder, setReplacementSortOrder] =
   useState('asc')
 const [partForm, setPartForm] = useState({
@@ -676,6 +678,48 @@ function handleEditInstalledPart(part) {
     behavior: 'smooth',
   })
 }
+
+async function handleDeleteInstalledPart(part) {
+  const confirmed = window.confirm(
+    `Удалить установленную деталь "${part.name}"?`
+  )
+
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    await deleteInstalledPart(part.id)
+
+    for (const photo of part.photos || []) {
+      try {
+        await deleteInstalledPartPhoto(photo)
+      } catch (photoError) {
+        console.warn(
+          'Не удалось удалить фото детали:',
+          photoError
+        )
+      }
+    }
+
+    await refreshInstalledParts()
+    await refreshMaintenanceTasks()
+
+    setSelectedInstalledPart(null)
+    setEditingPartId(null)
+    setShowPartForm(false)
+  } catch (error) {
+    console.error(
+      'Ошибка удаления установленной детали:',
+      error
+    )
+
+    window.alert(
+      'Не удалось удалить установленную деталь.'
+    )
+  }
+}
+
 function handlePartChange(event) {
   const { name, value } = event.target
 
@@ -1126,7 +1170,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
   <h1>Car Expenses</h1>
-  <span className="app-version">v2.0.0</span>
+  <span className="app-version">v2.0.1</span>
 </div>
 </div>
 
@@ -1562,31 +1606,50 @@ citroenSection === 'parts' ? (
     ← Назад к списку
   </button>
 
-  <button
-    type="button"
-    className="edit-button"
-    onClick={() =>
-      handleEditInstalledPart(selectedInstalledPart)
-    }
-  >
-    Редактировать
-  </button>
+ <button
+  type="button"
+  className="edit-button"
+  onClick={() =>
+    handleEditInstalledPart(selectedInstalledPart)
+  }
+>
+  Редактировать
+</button>
+
+<button
+  type="button"
+  className="delete-button"
+  onClick={() =>
+    handleDeleteInstalledPart(selectedInstalledPart)
+  }
+>
+  Удалить
+</button>
+
 </div>
 
           <h2>{selectedInstalledPart.name}</h2>
 
           {selectedInstalledPart.photos?.length > 0 && (
-            <div className="installed-part-photos">
-              {selectedInstalledPart.photos.map((photo) => (
-                <img
-                  key={photo.id}
-                  src={photo.url}
-                  alt={selectedInstalledPart.name}
-                  className="installed-part-photo"
-                />
-              ))}
-            </div>
-          )}
+  <div className="installed-part-photos">
+    {selectedInstalledPart.photos.map((photo) => (
+      <button
+        key={photo.id}
+        type="button"
+        className="installed-part-photo-button"
+        onClick={() =>
+          setOpenedPartPhoto(photo.url)
+        }
+      >
+        <img
+          src={photo.url}
+          alt={selectedInstalledPart.name}
+          className="installed-part-photo"
+        />
+      </button>
+    ))}
+  </div>
+)}
 
           <div className="part-detail-fields">
             <p>
@@ -2372,6 +2435,31 @@ citroenSection === 'parts' ? (
 
     </>
   )}
+
+{openedPartPhoto && (
+  <div
+    className="photo-lightbox"
+    onClick={() => setOpenedPartPhoto(null)}
+  >
+    <button
+      type="button"
+      className="photo-lightbox-close"
+      onClick={() => setOpenedPartPhoto(null)}
+      aria-label="Закрыть фото"
+    >
+      ×
+    </button>
+
+    <img
+      src={openedPartPhoto}
+      alt="Фото установленной детали"
+      className="photo-lightbox-image"
+      onClick={(event) =>
+        event.stopPropagation()
+      }
+    />
+  </div>
+)}
 
     </main>
   )

@@ -668,3 +668,82 @@ tbody tr:hover {
 .current-work-summary-item strong {
   font-size: 15px;
 }
+
+.installed-part-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.installed-part-photo-button {
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.installed-part-photo-button:hover .installed-part-photo {
+  transform: scale(1.03);
+}
+
+.installed-part-photo {
+  width: 180px;
+  height: 135px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  display: block;
+  transition: transform 0.15s ease;
+}
+
+.photo-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 30px;
+  background: rgba(0, 0, 0, 0.88);
+  cursor: zoom-out;
+}
+
+.photo-lightbox-image {
+  max-width: 95vw;
+  max-height: 92vh;
+
+  width: auto;
+  height: auto;
+
+  object-fit: contain;
+  border-radius: 8px;
+
+  cursor: default;
+}
+
+.photo-lightbox-close {
+  position: fixed;
+  top: 20px;
+  right: 25px;
+
+  width: 42px;
+  height: 42px;
+
+  border: none;
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+
+  font-size: 32px;
+  line-height: 38px;
+
+  cursor: pointer;
+}
+
+.photo-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
