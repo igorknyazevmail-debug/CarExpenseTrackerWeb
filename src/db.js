@@ -1,5 +1,33 @@
 import { supabase } from './lib/supabaseClient'
 
+const INSTALLED_PART_PHOTO_BUCKET = 'installed-part-photos'
+const MAX_INSTALLED_PART_PHOTOS = 5
+const PHOTO_URL_TTL_SECONDS = 60 * 60 * 24
+
+async function getInstalledPartPhotoUrl(filePath) {
+  if (!filePath) {
+    return ''
+  }
+
+  const { data, error } = await supabase.storage
+    .from(INSTALLED_PART_PHOTO_BUCKET)
+    .createSignedUrl(
+      filePath,
+      PHOTO_URL_TTL_SECONDS
+    )
+
+  if (error) {
+    console.error(
+      'Ошибка получения URL фото:',
+      error
+    )
+
+    return ''
+  }
+
+  return data?.signedUrl || ''
+}
+
 export async function getAllExpenses() {
   const { data, error } = await supabase
     .from('expenses')
@@ -71,6 +99,352 @@ export async function deleteExpense(expenseId) {
 
   if (error) {
     console.error('Ошибка удаления расхода:', error)
+    throw error
+  }
+}
+
+export async function getInstalledParts() {
+  const { data, error } = await supabase
+    .from('installed_parts')
+    .select(`
+      *,
+      installed_part_photos (
+        id,
+        file_path,
+        sort_order,
+        created_at
+      )
+    `)
+    .order('installed_date', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error(
+      'Ошибка загрузки установленных деталей:',
+      error
+    )
+    throw error
+  }
+
+  return Promise.all(
+    (data || []).map(async (part) => {
+      const sortedPhotos = [
+        ...(part.installed_part_photos || []),
+      ].sort(
+        (a, b) =>
+          (a.sort_order || 0) -
+          (b.sort_order || 0)
+      )
+
+      const photos = await Promise.all(
+        sortedPhotos.map(async (photo) => ({
+          id: photo.id,
+          path: photo.file_path,
+          url: await getInstalledPartPhotoUrl(
+            photo.file_path
+          ),
+          stored: true,
+        }))
+      )
+
+      const {
+        installed_part_photos,
+        ...partData
+      } = part
+
+      return {
+        id: partData.id,
+        name: partData.part_name,
+        quantity: partData.quantity || 1,
+        installedDate: partData.installed_date,
+        mileage: partData.mileage,
+        serviceLifeKm: partData.service_life_km,
+          replacementMileage: partData.replacement_mileage,
+        manufacturer: partData.manufacturer || '',
+        article: partData.article || '',
+        oem: partData.oem || '',
+        note: partData.note || '',
+        photos,
+      }
+    })
+  )
+}
+
+export async function saveInstalledPart(part) {
+  const partData = {
+    part_name: part.name,
+    quantity: Number(part.quantity) || 1,
+    installed_date: part.installedDate,
+    mileage:
+      part.mileage === '' || part.mileage == null
+        ? null
+        : Number(part.mileage),
+        service_life_km:
+  part.serviceLifeKm === '' ||
+  part.serviceLifeKm == null
+    ? null
+    : Number(part.serviceLifeKm),
+
+    replacement_mileage:
+  part.replacementMileage === '' ||
+  part.replacementMileage == null
+    ? null
+    : Number(part.replacementMileage),
+
+    manufacturer: part.manufacturer || '',
+    article: part.article || '',
+    oem: part.oem || '',
+    note: part.note || '',
+  }
+
+  if (part.id) {
+    const { data, error } = await supabase
+      .from('installed_parts')
+      .update(partData)
+      .eq('id', part.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error(
+        'Ошибка обновления установленной детали:',
+        error
+      )
+      throw error
+    }
+
+    return data.id
+  }
+
+  const { data, error } = await supabase
+    .from('installed_parts')
+    .insert(partData)
+    .select()
+    .single()
+
+  if (error) {
+    console.error(
+      'Ошибка добавления установленной детали:',
+      error
+    )
+    throw error
+  }
+
+  return data.id
+}
+
+export async function deleteInstalledPart(partId) {
+  const { error } = await supabase
+    .from('installed_parts')
+    .delete()
+    .eq('id', partId)
+
+  if (error) {
+    console.error(
+      'Ошибка удаления установленной детали:',
+      error
+    )
+    throw error
+  }
+}
+export async function uploadInstalledPartPhotos(
+  partId,
+  files,
+  currentPhotoCount = 0
+) {
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
+
+  if (userError || !user) {
+    throw new Error('Пользователь не авторизован')
+  }
+
+  const availableSlots =
+    MAX_INSTALLED_PART_PHOTOS - currentPhotoCount
+
+  const filesToUpload = Array.from(files).slice(
+    0,
+    Math.max(0, availableSlots)
+  )
+
+  for (let index = 0; index < filesToUpload.length; index += 1) {
+    const file = filesToUpload[index]
+
+    const extension =
+      file.name.split('.').pop()?.toLowerCase() || 'jpg'
+
+    const filePath =
+      `${user.id}/${partId}/` +
+      `${crypto.randomUUID()}.${extension}`
+
+    const { error: uploadError } =
+      await supabase.storage
+        .from(INSTALLED_PART_PHOTO_BUCKET)
+        .upload(filePath, file)
+
+    if (uploadError) {
+      console.error(
+        'Ошибка загрузки фото:',
+        uploadError
+      )
+      throw uploadError
+    }
+
+    const { error: dbError } = await supabase
+      .from('installed_part_photos')
+      .insert({
+        part_id: partId,
+        user_id: user.id,
+        file_path: filePath,
+        sort_order: currentPhotoCount + index,
+      })
+
+    if (dbError) {
+      await supabase.storage
+        .from(INSTALLED_PART_PHOTO_BUCKET)
+        .remove([filePath])
+
+      throw dbError
+    }
+  }
+}
+
+export async function deleteInstalledPartPhoto(photo) {
+  if (!photo?.id || !photo?.path) {
+    return
+  }
+
+  const { error: storageError } =
+    await supabase.storage
+      .from(INSTALLED_PART_PHOTO_BUCKET)
+      .remove([photo.path])
+
+  if (storageError) {
+    console.error(
+      'Ошибка удаления файла фото:',
+      storageError
+    )
+    throw storageError
+  }
+
+  const { error: dbError } = await supabase
+    .from('installed_part_photos')
+    .delete()
+    .eq('id', photo.id)
+
+  if (dbError) {
+    console.error(
+      'Ошибка удаления записи фото:',
+      dbError
+    )
+    throw dbError
+  }
+}
+export async function getMaintenanceTasks() {
+  const { data, error } = await supabase
+    .from('maintenance_tasks')
+    .select('*')
+    .order('created_at', { ascending: true })
+
+  if (error) {
+    console.error(
+      'Ошибка загрузки регламентных работ:',
+      error
+    )
+    throw error
+  }
+
+  return (data || []).map((task) => ({
+    id: task.id,
+    name: task.name,
+    lastServiceDate: task.last_service_date,
+    lastServiceMileage: task.last_service_mileage,
+    intervalKm: task.interval_km,
+    nextServiceMileage: task.next_service_mileage,
+    installedPartId: task.installed_part_id,
+    note: task.note || '',
+  }))
+}
+
+export async function saveMaintenanceTask(task) {
+  const taskData = {
+    name: task.name,
+    last_service_date:
+      task.lastServiceDate || null,
+
+    last_service_mileage:
+      task.lastServiceMileage === '' ||
+      task.lastServiceMileage == null
+        ? null
+        : Number(task.lastServiceMileage),
+        
+next_service_mileage:
+  task.nextServiceMileage === '' ||
+  task.nextServiceMileage == null
+    ? null
+    : Number(task.nextServiceMileage),
+
+    interval_km:
+      task.intervalKm === '' ||
+      task.intervalKm == null
+        ? null
+        : Number(task.intervalKm),
+
+    installed_part_id:
+      task.installedPartId || null,
+
+    note: task.note || '',
+  }
+
+  if (task.id) {
+    const { data, error } = await supabase
+      .from('maintenance_tasks')
+      .update(taskData)
+      .eq('id', task.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error(
+        'Ошибка обновления регламентной работы:',
+        error
+      )
+      throw error
+    }
+
+    return data.id
+  }
+
+  const { data, error } = await supabase
+    .from('maintenance_tasks')
+    .insert(taskData)
+    .select()
+    .single()
+
+  if (error) {
+    console.error(
+      'Ошибка добавления регламентной работы:',
+      error
+    )
+    throw error
+  }
+
+  return data.id
+}
+
+export async function deleteMaintenanceTask(taskId) {
+  const { error } = await supabase
+    .from('maintenance_tasks')
+    .delete()
+    .eq('id', taskId)
+
+  if (error) {
+    console.error(
+      'Ошибка удаления регламентной работы:',
+      error
+    )
     throw error
   }
 }
