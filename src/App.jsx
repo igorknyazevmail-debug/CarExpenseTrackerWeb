@@ -66,16 +66,6 @@ const carCategories = [
   'Прочее',
 ]
 
-const garageCategories = [
-  'Инструмент',
-  'Оборудование',
-  'Расходные материалы',
-  'Ремонт гаража',
-  'Электричество',
-  'Аренда и сборы',
-  'Прочее',
-]
-
 function formatMoney(value) {
   return new Intl.NumberFormat('lt-LT', {
     style: 'currency',
@@ -380,7 +370,7 @@ async function refreshExpenses() {
   setExpenses(data)
 }
 const [showForm, setShowForm] = useState(false)
-const [selectedObject, setSelectedObject] = useState('citroen')
+
 const [editingExpenseId, setEditingExpenseId] = useState(null)
 
   const [form, setForm] = useState({
@@ -393,9 +383,10 @@ const [editingExpenseId, setEditingExpenseId] = useState(null)
 
 const filteredExpenses = useMemo(() => {
   return expenses.filter(
-    (expense) => expense.object === selectedObject
+    (expense) => expense.object === 'citroen'
   )
-}, [expenses, selectedObject])
+}, [expenses])
+
   const totals = useMemo(() => {
     const now = new Date()
     const currentYear = now.getFullYear()
@@ -597,15 +588,9 @@ const sortedInstalledParts = useMemo(() => {
 function resetForm() {
   setForm({
     date: getTodayDate(),
-    category:
-      selectedObject === 'garage'
-        ? 'Инструмент'
-        : 'Запчасти',
+    category: 'Запчасти',
     description: '',
-mileage:
-  selectedObject === 'citroen'
-    ? getLastMileage()
-    : '',
+    mileage: getLastMileage(),
     amount: '',
   })
 }
@@ -618,7 +603,6 @@ function handleOpenAddForm() {
 
 function handleEditExpense(expense) {
   setEditingExpenseId(expense.id)
-setSelectedObject(expense.object)
 
   setForm({
     date: expense.date,
@@ -1121,7 +1105,7 @@ async function handleDeletePurchaseItem(item) {
 
 async function handleSubmit(event) {
   event.preventDefault()
-const objectToKeep = selectedObject
+
   const amount = Number(form.amount)
 
   if (!form.date || amount <= 0) {
@@ -1129,7 +1113,7 @@ const objectToKeep = selectedObject
 }
 
   const expenseData = {
-    object: selectedObject,
+object: 'citroen',
     date: form.date,
     category: form.category,
     description: form.description.trim(),
@@ -1151,7 +1135,7 @@ const objectToKeep = selectedObject
     }
 
     await refreshExpenses()
-setSelectedObject(objectToKeep)
+
     resetForm()
     setEditingExpenseId(null)
     setShowForm(false)
@@ -1208,21 +1192,19 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-  <span className="app-version">v2.2.0</span>
+<span className="app-version">v3.0.0</span>
 </div>
 </div>
 
         <div className="header-actions">
-{selectedObject === 'citroen' &&
-citroenSection === 'parts' ? (
+{citroenSection === 'parts' ? (
   <button
     className="primary-button"
     onClick={handleOpenAddPart}
   >
     + Добавить деталь
   </button>
-) : selectedObject === 'citroen' &&
-  citroenSection === 'maintenance' ? (
+) : citroenSection === 'maintenance' ? (
   <button
     className="primary-button"
     onClick={handleOpenAddMaintenance}
@@ -1279,11 +1261,7 @@ citroenSection === 'parts' ? (
                 value={form.category}
                 onChange={handleChange}
               >
-                {(
-  selectedObject === 'garage'
-    ? garageCategories
-    : carCategories
-).map((category) => (
+{carCategories.map((category) => (
                   <option
                     key={category}
                     value={category}
@@ -1302,30 +1280,22 @@ citroenSection === 'parts' ? (
                 name="description"
                 value={form.description}
                 onChange={handleChange}
-              placeholder={
-  selectedObject === 'garage'
-    ? 'Например: набор ключей'
-    : 'Например: моторное масло'
-}
+placeholder="Например: моторное масло"
 
               />
             </label>
 
-            {selectedObject === 'citroen' && (
-  <label>
-    <span>Пробег, км</span>
+<label>
+  <span>Пробег, км</span>
 
-    <input
-      type="number"
-      name="mileage"
-      value={form.mileage}
-      onChange={handleChange}
-      min="0"
-    />
-  </label>
-
-  
-)}
+  <input
+    type="number"
+    name="mileage"
+    value={form.mileage}
+    onChange={handleChange}
+    min="0"
+  />
+</label>
 
             <label>
               <span>Сумма, €</span>
@@ -1368,61 +1338,39 @@ citroenSection === 'parts' ? (
 
 <section className="filters">
   <label>
-    <span>Объект</span>
+    <span>Раздел</span>
 
     <select
-      value={selectedObject}
+      value={citroenSection}
       onChange={(event) =>
-        setSelectedObject(event.target.value)
+        setCitroenSection(event.target.value)
       }
     >
-      <option value="citroen">
-        Citroën
+      <option value="expenses">
+        Расходы
       </option>
 
-      <option value="garage">
-        Гараж
+      <option value="parts">
+        Установленные детали
+      </option>
+
+      <option value="maintenance">
+        Регламентные работы
+      </option>
+
+      <option value="current">
+        Текущие работы
+      </option>
+
+      <option value="buy">
+        Купить
       </option>
     </select>
   </label>
-
-  {selectedObject === 'citroen' && (
-    <label>
-      <span>Раздел</span>
-
-      <select
-        value={citroenSection}
-        onChange={(event) =>
-          setCitroenSection(event.target.value)
-        }
-      >
-        <option value="expenses">
-          Расходы
-        </option>
-
-        <option value="parts">
-          Установленные детали
-        </option>
-
-        <option value="maintenance">
-          Регламентные работы
-        </option>
-
-        <option value="current">
-          Текущие работы
-        </option>
-
-        <option value="buy">
-          Купить
-        </option>
-      </select>
-    </label>
-  )}
 </section>
 
 
-{selectedObject === 'citroen' &&
-  citroenSection === 'parts' &&
+{citroenSection === 'parts' &&
   showPartForm && (
     <section className="expense-form-section">
       <div className="section-header">
@@ -1601,8 +1549,7 @@ citroenSection === 'parts' ? (
       </form>
     </section>
   )}
-{selectedObject === 'citroen' &&
-  citroenSection === 'parts' && (
+{citroenSection === 'parts' && (
     <>
       {selectedInstalledPart ? (
         <section className="part-detail">
@@ -1829,8 +1776,7 @@ citroenSection === 'parts' ? (
     </>
   )}
 
-{selectedObject === 'citroen' &&
-  citroenSection === 'maintenance' &&
+{citroenSection === 'maintenance' &&
   showMaintenanceForm && (
     <section className="expense-form-section">
       <div className="section-header">
@@ -1956,9 +1902,7 @@ citroenSection === 'parts' ? (
       </form>
     </section>
   )}
-
-{selectedObject === 'citroen' &&
-  citroenSection === 'maintenance' && (
+{citroenSection === 'maintenance' && (
     <section className="expenses-section">
       <div className="section-header">
         <h2>Регламентные работы</h2>
@@ -2095,8 +2039,7 @@ citroenSection === 'parts' ? (
       )}
     </section>
   )}
-{selectedObject === 'citroen' &&
-  citroenSection === 'current' && (
+{citroenSection === 'current' && (
     <section className="expenses-section">
       <div className="section-header">
         <h2>Текущие работы</h2>
@@ -2237,8 +2180,7 @@ citroenSection === 'parts' ? (
     </section>
   )}
 
-{selectedObject === 'citroen' &&
-  citroenSection === 'buy' && (
+{citroenSection === 'buy' && (
     <section className="expenses-section">
       <div className="section-header">
         <h2>Купить</h2>
@@ -2369,10 +2311,7 @@ citroenSection === 'parts' ? (
     </section>
   )}
 
-{(
-  selectedObject === 'garage' ||
-  citroenSection === 'expenses'
-) && (
+{citroenSection === 'expenses' && (
   <>
       <section className="stats">
         <article className="stat-card">
@@ -2409,9 +2348,7 @@ citroenSection === 'parts' ? (
                 <th>Дата</th>
                 <th>Категория</th>
                 <th>Описание</th>
-                {selectedObject === 'citroen' && (
-  <th>Пробег</th>
-)}
+<th>Пробег</th>
                 <th>Сумма</th>
                 <th>Действия</th>
               </tr>
@@ -2424,13 +2361,11 @@ citroenSection === 'parts' ? (
                   <td>{expense.category}</td>
                   <td>{expense.description}</td>
 
-              {selectedObject === 'citroen' && (
-  <td>
-    {expense.mileage
-      ? `${expense.mileage.toLocaleString('lt-LT')} км`
-      : '—'}
-  </td>
-)}
+              <td>
+  {expense.mileage
+    ? `${expense.mileage.toLocaleString('lt-LT')} км`
+    : '—'}
+</td>
 
                   <td>
                     {formatMoney(expense.amount)}
