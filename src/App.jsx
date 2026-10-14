@@ -1169,7 +1169,7 @@ if (expensesLoading) {
       <header className="topbar">
         <div>
 <div className="app-title-row">
-  <h1>Car Expenses</h1>
+<h1>Моя машина</h1>
   <span className="app-version">v2.0.1</span>
 </div>
 </div>

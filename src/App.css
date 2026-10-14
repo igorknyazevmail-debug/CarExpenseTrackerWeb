@@ -747,3 +747,61 @@ tbody tr:hover {
 .photo-lightbox-close:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+
+@media (max-width: 600px) {
+  .current-work-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .current-work-form input {
+    grid-column: 1 / -1;
+
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .current-work-priority-select {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+  }
+
+  .current-work-form .primary-button {
+    width: 100%;
+    white-space: nowrap;
+  }
+
+    .current-work-item {
+    gap: 10px;
+  }
+
+  .current-work-text {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .current-work-item .delete-button {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    white-space: nowrap;
+  }
+
+  
+}
+
+@media (max-width: 600px) {
+  .section-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .section-tab {
+    flex: 0 0 auto;
+    white-space: nowrap;
+  }
+}
