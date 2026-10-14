@@ -1195,7 +1195,35 @@ if (expensesLoading) {
 <span className="app-version">v3.0.0</span>
 </div>
 </div>
+<div className="header-section-control">
+  <select
+    value={citroenSection}
+    onChange={(event) =>
+      setCitroenSection(event.target.value)
+    }
+    aria-label="Раздел"
+  >
+    <option value="expenses">
+      Расходы
+    </option>
 
+    <option value="parts">
+      Установленные детали
+    </option>
+
+    <option value="maintenance">
+      Регламентные работы
+    </option>
+
+    <option value="current">
+      Текущие работы
+    </option>
+
+    <option value="buy">
+      Купить
+    </option>
+  </select>
+</div>
         <div className="header-actions">
 {citroenSection === 'parts' ? (
   <button
@@ -1335,40 +1363,6 @@ placeholder="Например: моторное масло"
           </form>
         </section>
       )}
-
-<section className="filters">
-  <label>
-    <span>Раздел</span>
-
-    <select
-      value={citroenSection}
-      onChange={(event) =>
-        setCitroenSection(event.target.value)
-      }
-    >
-      <option value="expenses">
-        Расходы
-      </option>
-
-      <option value="parts">
-        Установленные детали
-      </option>
-
-      <option value="maintenance">
-        Регламентные работы
-      </option>
-
-      <option value="current">
-        Текущие работы
-      </option>
-
-      <option value="buy">
-        Купить
-      </option>
-    </select>
-  </label>
-</section>
-
 
 {citroenSection === 'parts' &&
   showPartForm && (
