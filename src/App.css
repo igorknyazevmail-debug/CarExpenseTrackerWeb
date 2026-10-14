@@ -838,3 +838,33 @@ tbody tr:hover {
     min-width: 0;
   }
 }
+
+.installed-part-photo-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.installed-part-photo-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+
+  width: 28px;
+  height: 28px;
+
+  border: none;
+  border-radius: 50%;
+
+  background: rgba(220, 38, 38, 0.9);
+  color: white;
+
+  font-size: 20px;
+  line-height: 26px;
+
+  cursor: pointer;
+  z-index: 2;
+}
+
+.installed-part-photo-delete:hover {
+  background: #b91c1c;
+}

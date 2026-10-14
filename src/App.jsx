@@ -13,6 +13,7 @@ import {
   uploadInstalledPartPhotos,
   deleteInstalledPartPhoto,
   getMaintenanceTasks,
+  
 saveMaintenanceTask,
 deleteMaintenanceTask,
 getCurrentWorks,
@@ -653,6 +654,43 @@ setNewPartPhotos([])
 
   setShowPartForm(true)
 }
+
+async function handleDeleteInstalledPartPhoto(photo) {
+  const confirmed = window.confirm(
+    'Удалить это фото?'
+  )
+
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    await deleteInstalledPartPhoto(photo)
+
+    const updatedParts =
+      await refreshInstalledParts()
+
+    const updatedPart =
+      updatedParts.find(
+        (part) =>
+          part.id === selectedInstalledPart.id
+      )
+
+    if (updatedPart) {
+      setSelectedInstalledPart(updatedPart)
+    }
+  } catch (error) {
+    console.error(
+      'Ошибка удаления фото:',
+      error
+    )
+
+    window.alert(
+      'Не удалось удалить фото.'
+    )
+  }
+}
+
 function handleEditInstalledPart(part) {
   setEditingPartId(part.id)
   setNewPartPhotos([])
@@ -1170,7 +1208,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-  <span className="app-version">v2.1.0</span>
+  <span className="app-version">v2.2.0</span>
 </div>
 </div>
 
@@ -1604,20 +1642,36 @@ citroenSection === 'parts' ? (
           {selectedInstalledPart.photos?.length > 0 && (
   <div className="installed-part-photos">
     {selectedInstalledPart.photos.map((photo) => (
-      <button
+      <div
         key={photo.id}
-        type="button"
-        className="installed-part-photo-button"
-        onClick={() =>
-          setOpenedPartPhoto(photo.url)
-        }
+        className="installed-part-photo-wrapper"
       >
-        <img
-          src={photo.url}
-          alt={selectedInstalledPart.name}
-          className="installed-part-photo"
-        />
-      </button>
+        <button
+          type="button"
+          className="installed-part-photo-button"
+          onClick={() =>
+            setOpenedPartPhoto(photo.url)
+          }
+        >
+          <img
+            src={photo.url}
+            alt={selectedInstalledPart.name}
+            className="installed-part-photo"
+          />
+        </button>
+
+        <button
+          type="button"
+          className="installed-part-photo-delete"
+          onClick={() =>
+            handleDeleteInstalledPartPhoto(photo)
+          }
+          title="Удалить фото"
+          aria-label="Удалить фото"
+        >
+          ×
+        </button>
+      </div>
     ))}
   </div>
 )}

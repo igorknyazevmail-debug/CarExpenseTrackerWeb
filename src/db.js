@@ -3,6 +3,8 @@ import { supabase } from './lib/supabaseClient'
 const INSTALLED_PART_PHOTO_BUCKET = 'installed-part-photos'
 const MAX_INSTALLED_PART_PHOTOS = 5
 const PHOTO_URL_TTL_SECONDS = 60 * 60 * 24
+const MAX_PHOTO_SIZE_BYTES = 500 * 1024
+const MAX_PHOTO_DIMENSION = 1600
 
 async function getInstalledPartPhotoUrl(filePath) {
   if (!filePath) {
@@ -247,6 +249,135 @@ export async function deleteInstalledPart(partId) {
     throw error
   }
 }
+
+async function compressPhoto(file) {
+  const imageUrl = URL.createObjectURL(file)
+
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image()
+
+      img.onload = () => resolve(img)
+
+      img.onerror = () =>
+        reject(
+          new Error(
+            `Не удалось открыть изображение: ${file.name}`
+          )
+        )
+
+      img.src = imageUrl
+    })
+
+    let width = image.naturalWidth
+    let height = image.naturalHeight
+
+    const longestSide = Math.max(width, height)
+
+    if (longestSide > MAX_PHOTO_DIMENSION) {
+      const scale =
+        MAX_PHOTO_DIMENSION / longestSide
+
+      width = Math.round(width * scale)
+      height = Math.round(height * scale)
+    }
+
+    // Если фото уже подходит и по размеру,
+    // и по разрешению — оставляем оригинал.
+    if (
+      file.size <= MAX_PHOTO_SIZE_BYTES &&
+      image.naturalWidth <= MAX_PHOTO_DIMENSION &&
+      image.naturalHeight <= MAX_PHOTO_DIMENSION
+    ) {
+      return file
+    }
+
+    let quality = 0.88
+    let blob = null
+
+    while (true) {
+      const canvas = document.createElement('canvas')
+
+      canvas.width = width
+      canvas.height = height
+
+      const context = canvas.getContext('2d')
+
+      if (!context) {
+        throw new Error(
+          'Не удалось создать Canvas для сжатия фото.'
+        )
+      }
+
+      context.fillStyle = '#ffffff'
+      context.fillRect(
+        0,
+        0,
+        width,
+        height
+      )
+
+      context.drawImage(
+        image,
+        0,
+        0,
+        width,
+        height
+      )
+
+      blob = await new Promise((resolve) => {
+        canvas.toBlob(
+          resolve,
+          'image/jpeg',
+          quality
+        )
+      })
+
+      if (!blob) {
+        throw new Error(
+          'Не удалось сжать изображение.'
+        )
+      }
+
+      // Фото уже меньше 0,5 MB.
+      if (blob.size <= MAX_PHOTO_SIZE_BYTES) {
+        break
+      }
+
+      // Сначала уменьшаем качество.
+      if (quality > 0.5) {
+        quality -= 0.08
+        continue
+      }
+
+      // Если этого недостаточно —
+      // немного уменьшаем разрешение.
+      width = Math.round(width * 0.9)
+      height = Math.round(height * 0.9)
+
+      quality = 0.75
+
+      if (width < 400 || height < 400) {
+        break
+      }
+    }
+
+    const originalName =
+      file.name.replace(/\.[^/.]+$/, '')
+
+    return new File(
+      [blob],
+      `${originalName}.jpg`,
+      {
+        type: 'image/jpeg',
+        lastModified: Date.now(),
+      }
+    )
+  } finally {
+    URL.revokeObjectURL(imageUrl)
+  }
+}
+
 export async function uploadInstalledPartPhotos(
   partId,
   files,
@@ -270,10 +401,21 @@ export async function uploadInstalledPartPhotos(
   )
 
   for (let index = 0; index < filesToUpload.length; index += 1) {
-    const file = filesToUpload[index]
+  const originalFile = filesToUpload[index]
 
-    const extension =
-      file.name.split('.').pop()?.toLowerCase() || 'jpg'
+  const file =
+    await compressPhoto(originalFile)
+
+  console.log(
+    'Фото перед загрузкой:',
+    originalFile.name,
+    `${(originalFile.size / 1024 / 1024).toFixed(2)} MB`,
+    '→',
+    `${(file.size / 1024 / 1024).toFixed(2)} MB`
+  )
+
+  const extension =
+    file.name.split('.').pop()?.toLowerCase() || 'jpg'
 
     const filePath =
       `${user.id}/${partId}/` +
