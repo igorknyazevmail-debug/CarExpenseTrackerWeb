@@ -805,3 +805,36 @@ tbody tr:hover {
     white-space: nowrap;
   }
 }
+
+.filters {
+  display: flex;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.filters label {
+  flex: 1;
+  min-width: 0;
+}
+
+.filters select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 600px) {
+  .filters {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .filters label {
+    min-width: 0;
+  }
+
+  .filters select {
+    width: 100%;
+    min-width: 0;
+  }
+}

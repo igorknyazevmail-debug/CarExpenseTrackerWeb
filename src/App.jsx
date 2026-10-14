@@ -1170,7 +1170,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-  <span className="app-version">v2.0.1</span>
+  <span className="app-version">v2.1.0</span>
 </div>
 </div>
 
@@ -1328,7 +1328,7 @@ citroenSection === 'parts' ? (
         </section>
       )}
 
-      <section className="filters">
+<section className="filters">
   <label>
     <span>Объект</span>
 
@@ -1347,71 +1347,42 @@ citroenSection === 'parts' ? (
       </option>
     </select>
   </label>
+
+  {selectedObject === 'citroen' && (
+    <label>
+      <span>Раздел</span>
+
+      <select
+        value={citroenSection}
+        onChange={(event) =>
+          setCitroenSection(event.target.value)
+        }
+      >
+        <option value="expenses">
+          Расходы
+        </option>
+
+        <option value="parts">
+          Установленные детали
+        </option>
+
+        <option value="maintenance">
+          Регламентные работы
+        </option>
+
+        <option value="current">
+          Текущие работы
+        </option>
+
+        <option value="buy">
+          Купить
+        </option>
+      </select>
+    </label>
+  )}
 </section>
 
-{selectedObject === 'citroen' && (
-  <div className="section-tabs">
-    <button
-      type="button"
-      className={
-        citroenSection === 'expenses'
-          ? 'section-tab active'
-          : 'section-tab'
-      }
-      onClick={() => setCitroenSection('expenses')}
-    >
-      Расходы
-    </button>
 
-    <button
-      type="button"
-      className={
-        citroenSection === 'parts'
-          ? 'section-tab active'
-          : 'section-tab'
-      }
-      onClick={() => setCitroenSection('parts')}
-    >
-      Установленные детали
-    </button>
-<button
-  type="button"
-  className={
-    citroenSection === 'maintenance'
-      ? 'section-tab active'
-      : 'section-tab'
-  }
-  onClick={() => setCitroenSection('maintenance')}
->
-  Регламентные работы
-</button>
-
-<button
-  type="button"
-  className={
-    citroenSection === 'current'
-      ? 'section-tab active'
-      : 'section-tab'
-  }
-  onClick={() => setCitroenSection('current')}
->
-  Текущие работы
-</button>
-
-<button
-  type="button"
-  className={
-    citroenSection === 'buy'
-      ? 'section-tab active'
-      : 'section-tab'
-  }
-  onClick={() => setCitroenSection('buy')}
->
-  Купить
-</button>
-
-  </div>
-)}
 {selectedObject === 'citroen' &&
   citroenSection === 'parts' &&
   showPartForm && (
