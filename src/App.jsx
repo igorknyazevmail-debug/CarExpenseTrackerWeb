@@ -8,6 +8,7 @@ import {
   saveExpense,
   deleteExpense,
   getInstalledParts,
+  getInstalledPartPhotoUrl,
   saveInstalledPart,
   deleteInstalledPart,
   uploadInstalledPartPhotos,
@@ -65,6 +66,19 @@ const carCategories = [
   'Налоги и сборы',
   'Прочее',
 ]
+const installedPartCategories = [
+  'Двигатель',
+  'Охлаждение',
+  'Впуск',
+  'Выпуск',
+  'Трансмиссия',
+  'Подвеска',
+  'Рулевое',
+  'Тормоза',
+  'Электрика',
+  'Кузов',
+  'Оборудование',
+]
 
 function formatMoney(value) {
   return new Intl.NumberFormat('lt-LT', {
@@ -85,6 +99,71 @@ function getTodayDate() {
 
   return `${year}-${month}-${day}`
 }
+
+function InstalledPartPhoto({
+  photo,
+  alt,
+  onOpen,
+  onDelete,
+}) {
+  const [photoUrl, setPhotoUrl] = useState('')
+
+  useEffect(() => {
+    let active = true
+
+    async function loadPhoto() {
+      if (!photo?.path) {
+        return
+      }
+
+      const url =
+        await getInstalledPartPhotoUrl(
+          photo.path
+        )
+
+      if (active) {
+        setPhotoUrl(url)
+      }
+    }
+
+    loadPhoto()
+
+    return () => {
+      active = false
+    }
+  }, [photo?.path])
+
+  return (
+    <div className="installed-part-photo-wrapper">
+      {photoUrl && (
+        <button
+          type="button"
+          className="installed-part-photo-button"
+          onClick={() => onOpen(photoUrl)}
+        >
+          <img
+            src={photoUrl}
+            alt={alt}
+            className="installed-part-photo"
+            loading="lazy"
+            decoding="async"
+          />
+        </button>
+      )}
+
+      <button
+        type="button"
+        className="installed-part-photo-delete"
+        onClick={() => onDelete(photo)}
+        title="Удалить фото"
+        aria-label="Удалить фото"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
 function App() {
   const [session, setSession] = useState(null)
 const [authLoading, setAuthLoading] = useState(true)
@@ -164,8 +243,17 @@ const [selectedInstalledPart, setSelectedInstalledPart] = useState(null)
 const [openedPartPhoto, setOpenedPartPhoto] = useState(null)
 const [replacementSortOrder, setReplacementSortOrder] =
   useState('asc')
+  const [
+  installedPartCategory,
+  setInstalledPartCategory,
+] = useState('Все')
+const [
+  installedPartSearch,
+  setInstalledPartSearch,
+] = useState('')
 const [partForm, setPartForm] = useState({
   name: '',
+  category: installedPartCategories[0],
   quantity: 1,
   installedDate: getTodayDate(),
   mileage: '',
@@ -378,6 +466,8 @@ const [editingExpenseId, setEditingExpenseId] = useState(null)
   category: 'Запчасти',
   description: '',
   mileage: '',
+    fuelVolume: '',
+      fullTank: false,
   amount: '',
 })
 
@@ -419,6 +509,119 @@ for (const expense of filteredExpenses) {
     }
 }, [filteredExpenses])
 
+const lastFuelStats = useMemo(() => {
+  const fuelExpenses = filteredExpenses
+    .filter(
+      (expense) =>
+        expense.category === 'Топливо' &&
+        expense.fuelVolume &&
+        Number(expense.fuelVolume) > 0
+    )
+    .sort((a, b) => {
+      const dateDifference =
+        new Date(`${a.date}T12:00:00`) -
+        new Date(`${b.date}T12:00:00`)
+
+      if (dateDifference !== 0) {
+        return dateDifference
+      }
+
+      return (
+        Number(a.mileage || 0) -
+        Number(b.mileage || 0)
+      )
+    })
+
+ if (fuelExpenses.length === 0) {
+  return {
+    date: null,
+    mileage: null,
+    liters: null,
+    pricePerLiter: null,
+    previousConsumption: null,
+  }
+}
+
+  const lastFuel =
+    fuelExpenses[fuelExpenses.length - 1]
+
+  const liters =
+    Number(lastFuel.fuelVolume)
+
+  const pricePerLiter =
+    liters > 0
+      ? Number(lastFuel.amount) / liters
+      : null
+
+  const fullTankExpenses =
+    fuelExpenses.filter(
+      (expense) =>
+        expense.fullTank &&
+        expense.mileage !== null &&
+        expense.mileage !== undefined &&
+        Number.isFinite(Number(expense.mileage))
+    )
+
+  let previousConsumption = null
+
+  if (fullTankExpenses.length >= 2) {
+    const lastFullTank =
+      fullTankExpenses[
+        fullTankExpenses.length - 1
+      ]
+
+    const previousFullTank =
+      fullTankExpenses[
+        fullTankExpenses.length - 2
+      ]
+
+    const startIndex =
+      fuelExpenses.findIndex(
+        (expense) =>
+          expense.id === previousFullTank.id
+      )
+
+    const endIndex =
+      fuelExpenses.findIndex(
+        (expense) =>
+          expense.id === lastFullTank.id
+      )
+
+    const distance =
+      Number(lastFullTank.mileage) -
+      Number(previousFullTank.mileage)
+
+    const fuelUsed =
+      fuelExpenses
+        .slice(startIndex + 1, endIndex + 1)
+        .reduce(
+          (sum, expense) =>
+            sum +
+            Number(expense.fuelVolume || 0),
+          0
+        )
+
+    if (
+      startIndex >= 0 &&
+      endIndex > startIndex &&
+      distance > 0 &&
+      fuelUsed > 0
+    ) {
+      previousConsumption =
+        (fuelUsed / distance) * 100
+    }
+  }
+
+  return {
+  date: lastFuel.date,
+  mileage: lastFuel.mileage ?? null,
+  liters,
+  pricePerLiter,
+  previousConsumption,
+}
+
+}, [filteredExpenses])
+
 const sortedMaintenanceTasks = useMemo(() => {
   return [...maintenanceTasks].sort((a, b) => {
     const nextA = getMaintenanceNextMileage(a)
@@ -448,14 +651,28 @@ const sortedMaintenanceTasks = useMemo(() => {
   installedParts,
 ])
 
-  function handleChange(event) {
-    const { name, value } = event.target
+function handleChange(event) {
+  const {
+    name,
+    value,
+    type,
+    checked,
+  } = event.target
 
-    setForm((current) => ({
-      ...current,
-      [name]: value,
-    }))
-  }
+  setForm((current) => ({
+    ...current,
+
+    [name]:
+      type === 'checkbox'
+        ? checked
+        : value,
+
+    ...(name === 'category' &&
+    value === 'Топливо'
+      ? { description: '' }
+      : {}),
+  }))
+}
 
   function getLastMileage() {
   const lastExpenseWithMileage = expenses.find(
@@ -561,29 +778,73 @@ function isMaintenanceOverdue(task) {
 
 
 const sortedInstalledParts = useMemo(() => {
-  return [...installedParts].sort((a, b) => {
-    const replacementA = getReplacementMileage(a)
-    const replacementB = getReplacementMileage(b)
+  const searchQuery =
+    installedPartSearch
+      .trim()
+      .toLowerCase()
 
-    if (replacementA === null && replacementB === null) {
-      return 0
-    }
+  return installedParts
+    .filter((part) => {
+      const matchesCategory =
+        installedPartCategory === 'Все' ||
+        part.category === installedPartCategory
 
-    if (replacementA === null) {
-      return 1
-    }
+      const searchableText = [
+        part.name,
+        part.category,
+        part.manufacturer,
+        part.article,
+        part.oem,
+        part.note,
+      ]
+        .map((value) =>
+          String(value || '').toLowerCase()
+        )
+        .join(' ')
 
-    if (replacementB === null) {
-      return -1
-    }
+      const matchesSearch =
+        !searchQuery ||
+        searchableText.includes(searchQuery)
 
-    if (replacementSortOrder === 'asc') {
-      return replacementA - replacementB
-    }
+      return (
+        matchesCategory &&
+        matchesSearch
+      )
+    })
+    .sort((a, b) => {
+      const replacementA =
+        getReplacementMileage(a)
 
-    return replacementB - replacementA
-  })
-}, [installedParts, replacementSortOrder])
+      const replacementB =
+        getReplacementMileage(b)
+
+      if (
+        replacementA === null &&
+        replacementB === null
+      ) {
+        return 0
+      }
+
+      if (replacementA === null) {
+        return 1
+      }
+
+      if (replacementB === null) {
+        return -1
+      }
+
+      if (replacementSortOrder === 'asc') {
+        return replacementA - replacementB
+      }
+
+      return replacementB - replacementA
+    })
+}, [
+  installedParts,
+  replacementSortOrder,
+  installedPartCategory,
+  installedPartSearch,
+])
 
 function resetForm() {
   setForm({
@@ -591,6 +852,8 @@ function resetForm() {
     category: 'Запчасти',
     description: '',
     mileage: getLastMileage(),
+        fuelVolume: '',
+          fullTank: false,
     amount: '',
   })
 }
@@ -605,12 +868,14 @@ function handleEditExpense(expense) {
   setEditingExpenseId(expense.id)
 
   setForm({
-    date: expense.date,
-    category: expense.category,
-    description: expense.description,
-    mileage: expense.mileage ?? '',
-    amount: expense.amount,
-  })
+  date: expense.date,
+  category: expense.category,
+  description: expense.description,
+  mileage: expense.mileage ?? '',
+  fuelVolume: expense.fuelVolume ?? '',
+    fullTank: expense.fullTank ?? false,
+  amount: expense.amount,
+})
 
   setShowForm(true)
 
@@ -625,6 +890,7 @@ function handleOpenAddPart() {
 setNewPartPhotos([])
   setPartForm({
     name: '',
+    category: installedPartCategories[0],
     quantity: 1,
     installedDate: getTodayDate(),
     mileage: getLastMileage(),
@@ -681,6 +947,8 @@ function handleEditInstalledPart(part) {
 
   setPartForm({
     name: part.name || '',
+    category:
+  part.category || installedPartCategories[0],
     quantity: part.quantity || 1,
     installedDate:
       part.installedDate || getTodayDate(),
@@ -767,6 +1035,7 @@ async function handlePartSubmit(event) {
 const partId = await saveInstalledPart({
   id: editingPartId || undefined,
   name: partForm.name.trim(),
+  category: partForm.category,
   quantity: Number(partForm.quantity) || 1,
   installedDate: partForm.installedDate,
   mileage:
@@ -1108,7 +1377,23 @@ async function handleSubmit(event) {
 
   const amount = Number(form.amount)
 
-  if (!form.date || amount <= 0) {
+const fuelVolume =
+  form.category === 'Топливо'
+    ? Number(form.fuelVolume)
+    : null
+
+ if (!form.date || amount <= 0) {
+  return
+}
+
+if (
+  form.category === 'Топливо' &&
+  (!fuelVolume || fuelVolume <= 0)
+) {
+  window.alert(
+    'Для категории «Топливо» укажите объём топлива.'
+  )
+
   return
 }
 
@@ -1121,6 +1406,13 @@ object: 'citroen',
       form.mileage === ''
         ? null
         : Number(form.mileage),
+        fuelVolume,
+
+        fullTank:
+  form.category === 'Топливо'
+    ? form.fullTank
+    : false,
+
     amount,
   }
 
@@ -1300,18 +1592,20 @@ if (expensesLoading) {
               </select>
             </label>
 
-            <label className="description-field">
-              <span>Описание</span>
+            {form.category !== 'Топливо' && (
 
-              <input
-                type="text"
-                name="description"
-                value={form.description}
-                onChange={handleChange}
-placeholder="Например: моторное масло"
+  <label className="description-field">
+    <span>Описание</span>
 
-              />
-            </label>
+    <input
+      type="text"
+      name="description"
+      value={form.description}
+      onChange={handleChange}
+      placeholder="Например: моторное масло"
+    />
+  </label>
+)}
 
 <label>
   <span>Пробег, км</span>
@@ -1325,8 +1619,38 @@ placeholder="Например: моторное масло"
   />
 </label>
 
-            <label>
-              <span>Сумма, €</span>
+{form.category === 'Топливо' && (
+  <label>
+    <span>Объём, л</span>
+
+    <input
+      type="number"
+      name="fuelVolume"
+      value={form.fuelVolume}
+      onChange={handleChange}
+      min="0.01"
+      step="0.01"
+      placeholder="Например: 42.50"
+      required
+    />
+  </label>
+)}
+
+{form.category === 'Топливо' && (
+  <label className="fuel-full-tank-field">
+    <input
+      type="checkbox"
+      name="fullTank"
+      checked={form.fullTank}
+      onChange={handleChange}
+    />
+
+    <span>Полный бак</span>
+  </label>
+)}
+
+<label>
+  <span>Сумма, €</span>
 
               <input
                 type="number"
@@ -1389,6 +1713,27 @@ placeholder="Например: моторное масло"
             required
           />
         </label>
+<label>
+  <span>Категория</span>
+
+  <select
+    name="category"
+    value={partForm.category}
+    onChange={handlePartChange}
+    required
+  >
+    {installedPartCategories.map(
+      (category) => (
+        <option
+          key={category}
+          value={category}
+        >
+          {category}
+        </option>
+      )
+    )}
+  </select>
+</label>
 
         <label>
           <span>Количество</span>
@@ -1580,39 +1925,18 @@ placeholder="Например: моторное масло"
 
           <h2>{selectedInstalledPart.name}</h2>
 
-          {selectedInstalledPart.photos?.length > 0 && (
+{selectedInstalledPart.photos?.length > 0 && (
   <div className="installed-part-photos">
     {selectedInstalledPart.photos.map((photo) => (
-      <div
+      <InstalledPartPhoto
         key={photo.id}
-        className="installed-part-photo-wrapper"
-      >
-        <button
-          type="button"
-          className="installed-part-photo-button"
-          onClick={() =>
-            setOpenedPartPhoto(photo.url)
-          }
-        >
-          <img
-            src={photo.url}
-            alt={selectedInstalledPart.name}
-            className="installed-part-photo"
-          />
-        </button>
-
-        <button
-          type="button"
-          className="installed-part-photo-delete"
-          onClick={() =>
-            handleDeleteInstalledPartPhoto(photo)
-          }
-          title="Удалить фото"
-          aria-label="Удалить фото"
-        >
-          ×
-        </button>
-      </div>
+        photo={photo}
+        alt={selectedInstalledPart.name}
+        onOpen={setOpenedPartPhoto}
+        onDelete={
+          handleDeleteInstalledPartPhoto
+        }
+      />
     ))}
   </div>
 )}
@@ -1627,6 +1951,10 @@ placeholder="Например: моторное масло"
 <p>
   <strong>Количество:</strong>{' '}
   {selectedInstalledPart.quantity || 1}
+</p>
+<p>
+  <strong>Категория:</strong>{' '}
+  {selectedInstalledPart.category || '—'}
 </p>
             <p>
               <strong>Пробег:</strong>{' '}
@@ -1672,7 +2000,68 @@ placeholder="Например: моторное масло"
           <div className="section-header">
             <h2>Установленные детали</h2>
           </div>
+<div className="installed-parts-filters">
+  <input
+    type="search"
+    value={installedPartSearch}
+    onChange={(event) =>
+      setInstalledPartSearch(
+        event.target.value
+      )
+    }
+    placeholder="Поиск деталей..."
+    aria-label="Поиск установленных деталей"
+  />
 
+  <select
+    value={installedPartCategory}
+    onChange={(event) =>
+      setInstalledPartCategory(
+        event.target.value
+      )
+    }
+  >
+    <option value="Все">
+      Все категории
+    </option>
+
+    {installedPartCategories.map(
+      (category) => (
+        <option
+          key={category}
+          value={category}
+        >
+          {category}
+        </option>
+      )
+    )}
+  </select>
+</div>
+<div className="installed-parts-category-filter">
+  <select
+    value={installedPartCategory}
+    onChange={(event) =>
+      setInstalledPartCategory(
+        event.target.value
+      )
+    }
+  >
+    <option value="Все">
+      Все категории
+    </option>
+
+    {installedPartCategories.map(
+      (category) => (
+        <option
+          key={category}
+          value={category}
+        >
+          {category}
+        </option>
+      )
+    )}
+  </select>
+</div>
           {installedPartsLoading ? (
             <p style={{ padding: '20px' }}>
               Загрузка деталей...
@@ -1684,6 +2073,7 @@ placeholder="Например: моторное масло"
                   <tr>
                     <th>Дата</th>
                     <th>Деталь</th>
+                    <th>Категория</th>
                     <th>Производитель</th>
                     <th>Артикул</th>
                     <th>Пробег</th>
@@ -1721,7 +2111,7 @@ placeholder="Например: моторное масло"
                       </td>
 
                       <td>{part.name}</td>
-
+<td>{part.category || '—'}</td>
                       <td>
                         {part.manufacturer || '—'}
                       </td>
@@ -1756,7 +2146,7 @@ placeholder="Например: моторное масло"
 
                   {installedParts.length === 0 && (
                     <tr>
-                      <td colSpan="6">
+                      <td colSpan="7">
                         Установленных деталей пока нет.
                       </td>
                     </tr>
@@ -2330,6 +2720,76 @@ placeholder="Например: моторное масло"
         </article>
       </section>
 
+<h2 className="fuel-stats-title">
+  Последняя заправка
+</h2>
+
+{lastFuelStats.date && (
+  <p className="fuel-stats-meta">
+    {formatDate(lastFuelStats.date)}
+
+    {lastFuelStats.mileage != null && (
+      <>
+        {' • '}
+        {Number(
+          lastFuelStats.mileage
+        ).toLocaleString('lt-LT')}{' '}
+        км
+      </>
+    )}
+  </p>
+)}
+
+<section className="stats fuel-stats">
+  <article className="stat-card">
+    <span>Заправлено</span>
+
+    <strong>
+      {lastFuelStats.liters != null
+        ? `${lastFuelStats.liters.toLocaleString(
+            'lt-LT',
+            {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 2,
+            }
+          )} л`
+        : '—'}
+    </strong>
+  </article>
+
+  <article className="stat-card">
+    <span>Цена за литр</span>
+
+    <strong>
+      {lastFuelStats.pricePerLiter != null
+        ? `${lastFuelStats.pricePerLiter.toLocaleString(
+            'lt-LT',
+            {
+              minimumFractionDigits: 3,
+              maximumFractionDigits: 3,
+            }
+          )} €/л`
+        : '—'}
+    </strong>
+  </article>
+
+  <article className="stat-card">
+    <span>Предыдущий расход</span>
+
+    <strong>
+      {lastFuelStats.previousConsumption != null
+        ? `${lastFuelStats.previousConsumption.toLocaleString(
+            'lt-LT',
+            {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            }
+          )} л/100 км`
+        : '—'}
+    </strong>
+  </article>
+</section>
+
       <section className="expenses-section">
         <div className="section-header">
           <h2>Последние расходы</h2>
@@ -2343,6 +2803,9 @@ placeholder="Например: моторное масло"
                 <th>Категория</th>
                 <th>Описание</th>
 <th>Пробег</th>
+<th>Объём</th>
+<th>€/л</th>
+<th>Бак</th>
                 <th>Сумма</th>
                 <th>Действия</th>
               </tr>
@@ -2359,6 +2822,47 @@ placeholder="Например: моторное масло"
   {expense.mileage
     ? `${expense.mileage.toLocaleString('lt-LT')} км`
     : '—'}
+</td>
+
+<td>
+  {expense.category === 'Топливо' &&
+  expense.fuelVolume
+    ? `${expense.fuelVolume.toLocaleString(
+        'lt-LT',
+        {
+          maximumFractionDigits: 2,
+        }
+      )} л`
+    : '—'}
+</td>
+
+<td>
+  {expense.category === 'Топливо' &&
+  expense.fuelVolume &&
+  expense.amount
+    ? `${(
+        expense.amount /
+        expense.fuelVolume
+      ).toLocaleString('lt-LT', {
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3,
+      })} €/л`
+    : '—'}
+</td>
+
+<td>
+  {expense.category === 'Топливо' &&
+  expense.fullTank ? (
+    <span
+      className="full-tank-badge"
+      title="Полный бак"
+      aria-label="Полный бак"
+    >
+      ✓
+    </span>
+  ) : (
+    '—'
+  )}
 </td>
 
                   <td>

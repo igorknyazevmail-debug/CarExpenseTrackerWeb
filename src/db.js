@@ -3,14 +3,94 @@ import { supabase } from './lib/supabaseClient'
 const INSTALLED_PART_PHOTO_BUCKET = 'installed-part-photos'
 const MAX_INSTALLED_PART_PHOTOS = 5
 const PHOTO_URL_TTL_SECONDS = 60 * 60 * 24
+const PHOTO_URL_CACHE_KEY =
+  'my-car-installed-part-photo-url-cache-v1'
+
+const PHOTO_URL_CACHE_MARGIN_MS =
+  5 * 60 * 1000
+
+const photoUrlMemoryCache = new Map()
 const MAX_PHOTO_SIZE_BYTES = 500 * 1024
 const MAX_PHOTO_DIMENSION = 1600
 
-async function getInstalledPartPhotoUrl(filePath) {
+function loadPhotoUrlCache() {
+  try {
+    const saved =
+      localStorage.getItem(PHOTO_URL_CACHE_KEY)
+
+    if (!saved) {
+      return {}
+    }
+
+    const parsed = JSON.parse(saved)
+
+    return parsed &&
+      typeof parsed === 'object'
+      ? parsed
+      : {}
+  } catch (error) {
+    console.warn(
+      'Не удалось прочитать кэш URL фотографий:',
+      error
+    )
+
+    return {}
+  }
+}
+
+function savePhotoUrlCache(cache) {
+  try {
+    localStorage.setItem(
+      PHOTO_URL_CACHE_KEY,
+      JSON.stringify(cache)
+    )
+  } catch (error) {
+    console.warn(
+      'Не удалось сохранить кэш URL фотографий:',
+      error
+    )
+  }
+}
+
+function isPhotoUrlCacheValid(entry) {
+  if (!entry?.url || !entry?.expiresAt) {
+    return false
+  }
+
+  return (
+    Date.now() <
+    entry.expiresAt - PHOTO_URL_CACHE_MARGIN_MS
+  )
+}
+
+export async function getInstalledPartPhotoUrl(filePath) {
   if (!filePath) {
     return ''
   }
 
+  // 1. Сначала проверяем быстрый кэш в памяти.
+  const memoryEntry =
+    photoUrlMemoryCache.get(filePath)
+
+  if (isPhotoUrlCacheValid(memoryEntry)) {
+    return memoryEntry.url
+  }
+
+  // 2. Затем проверяем localStorage.
+  const storedCache = loadPhotoUrlCache()
+  const storedEntry = storedCache[filePath]
+
+  if (isPhotoUrlCacheValid(storedEntry)) {
+    photoUrlMemoryCache.set(
+      filePath,
+      storedEntry
+    )
+
+    return storedEntry.url
+  }
+
+  // 3. Если URL нет или он устарел —
+  // получаем новый signed URL из Supabase.
   const { data, error } = await supabase.storage
     .from(INSTALLED_PART_PHOTO_BUCKET)
     .createSignedUrl(
@@ -27,7 +107,31 @@ async function getInstalledPartPhotoUrl(filePath) {
     return ''
   }
 
-  return data?.signedUrl || ''
+  const url = data?.signedUrl || ''
+
+  if (!url) {
+    return ''
+  }
+
+  const entry = {
+    url,
+    expiresAt:
+      Date.now() +
+      PHOTO_URL_TTL_SECONDS * 1000,
+  }
+
+  // 4. Сохраняем и в память,
+  // и в localStorage.
+  photoUrlMemoryCache.set(
+    filePath,
+    entry
+  )
+
+  storedCache[filePath] = entry
+
+  savePhotoUrlCache(storedCache)
+
+  return url
 }
 
 export async function getAllExpenses() {
@@ -49,7 +153,13 @@ export async function getAllExpenses() {
     category: expense.category,
     description: expense.description,
     mileage: expense.mileage,
-    amount: Number(expense.amount),
+
+fuelVolume:
+  expense.fuel_volume_l == null
+    ? null
+    : Number(expense.fuel_volume_l),
+fullTank: expense.is_full_tank ?? false,
+amount: Number(expense.amount),
   }))
 }
 
@@ -60,7 +170,19 @@ export async function saveExpense(expense) {
     category: expense.category,
     description: expense.description,
     mileage: expense.mileage ?? null,
-    amount: Number(expense.amount),
+
+fuel_volume_l:
+  expense.category === 'Топливо' &&
+  expense.fuelVolume != null
+    ? Number(expense.fuelVolume)
+    : null,
+
+    is_full_tank:
+  expense.category === 'Топливо'
+    ? Boolean(expense.fullTank)
+    : false,
+
+amount: Number(expense.amount),
   }
 
   if (expense.id) {
@@ -138,16 +260,11 @@ export async function getInstalledParts() {
           (b.sort_order || 0)
       )
 
-      const photos = await Promise.all(
-        sortedPhotos.map(async (photo) => ({
-          id: photo.id,
-          path: photo.file_path,
-          url: await getInstalledPartPhotoUrl(
-            photo.file_path
-          ),
-          stored: true,
-        }))
-      )
+      const photos = sortedPhotos.map((photo) => ({
+  id: photo.id,
+  path: photo.file_path,
+  stored: true,
+}))
 
       const {
         installed_part_photos,
@@ -157,6 +274,7 @@ export async function getInstalledParts() {
       return {
         id: partData.id,
         name: partData.part_name,
+        category: partData.category || '',
         quantity: partData.quantity || 1,
         installedDate: partData.installed_date,
         mileage: partData.mileage,
@@ -175,6 +293,7 @@ export async function getInstalledParts() {
 export async function saveInstalledPart(part) {
   const partData = {
     part_name: part.name,
+    category: part.category || null,
     quantity: Number(part.quantity) || 1,
     installed_date: part.installedDate,
     mileage:
@@ -482,8 +601,16 @@ export async function deleteInstalledPartPhoto(photo) {
       dbError
     )
     throw dbError
-  }
+    photoUrlMemoryCache.delete(photo.path)
 }
+const storedCache = loadPhotoUrlCache()
+
+if (storedCache[photo.path]) {
+  delete storedCache[photo.path]
+  savePhotoUrlCache(storedCache)
+}
+  }
+
 export async function getMaintenanceTasks() {
   const { data, error } = await supabase
     .from('maintenance_tasks')
