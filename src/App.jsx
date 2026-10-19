@@ -2037,31 +2037,7 @@ if (expensesLoading) {
     )}
   </select>
 </div>
-<div className="installed-parts-category-filter">
-  <select
-    value={installedPartCategory}
-    onChange={(event) =>
-      setInstalledPartCategory(
-        event.target.value
-      )
-    }
-  >
-    <option value="Все">
-      Все категории
-    </option>
 
-    {installedPartCategories.map(
-      (category) => (
-        <option
-          key={category}
-          value={category}
-        >
-          {category}
-        </option>
-      )
-    )}
-  </select>
-</div>
           {installedPartsLoading ? (
             <p style={{ padding: '20px' }}>
               Загрузка деталей...
