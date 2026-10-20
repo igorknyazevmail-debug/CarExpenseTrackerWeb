@@ -1484,7 +1484,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-<span className="app-version">v3.1.0</span>
+<span className="app-version">v3.1.1</span>
 </div>
 </div>
 <div className="header-section-control">
@@ -1516,29 +1516,34 @@ if (expensesLoading) {
     </option>
   </select>
 </div>
-        <div className="header-actions">
-{citroenSection === 'parts' ? (
-  <button
-    className="primary-button"
-    onClick={handleOpenAddPart}
-  >
-    + Добавить деталь
-  </button>
-) : citroenSection === 'maintenance' ? (
-  <button
-    className="primary-button"
-    onClick={handleOpenAddMaintenance}
-  >
-    + Добавить работу
-  </button>
-) : (
-  <button
-    className="primary-button"
-    onClick={handleOpenAddForm}
-  >
-    + Добавить расход
-  </button>
-)}
+
+<div className="header-actions">
+  {citroenSection === 'expenses' && (
+    <button
+      className="primary-button"
+      onClick={handleOpenAddForm}
+    >
+      + Добавить расход
+    </button>
+  )}
+
+  {citroenSection === 'parts' && (
+    <button
+      className="primary-button"
+      onClick={handleOpenAddPart}
+    >
+      + Добавить деталь
+    </button>
+  )}
+
+  {citroenSection === 'maintenance' && (
+    <button
+      className="primary-button"
+      onClick={handleOpenAddMaintenance}
+    >
+      + Добавить работу
+    </button>
+  )}
 
   <button
     className="secondary-button"
@@ -1547,6 +1552,7 @@ if (expensesLoading) {
     Выйти
   </button>
 </div>
+
       </header>
 
       {showForm && (
