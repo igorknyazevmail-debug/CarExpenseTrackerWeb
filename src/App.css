@@ -992,7 +992,7 @@ tbody tr:hover {
 
 .installed-parts-desktop table {
   width: 100%;
-  min-width: 900px;
+  min-width: 760px;
 }
 
 .installed-parts-desktop {
@@ -1045,14 +1045,14 @@ tbody tr:hover {
 
 /* Компьютер: карточка детали справа */
 @media (min-width: 901px) {
-  .installed-parts-layout.has-selection {
-    display: grid;
-    grid-template-columns:
-      minmax(0, 1fr)
-      minmax(340px, 420px);
-    gap: 18px;
-    align-items: start;
-  }
+.installed-parts-layout.has-selection {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    360px;
+  gap: 18px;
+  align-items: start;
+}
 
   .installed-parts-layout.has-selection
     .installed-part-detail-panel {
@@ -1062,12 +1062,11 @@ tbody tr:hover {
     overflow-y: auto;
   }
 
-  .installed-parts-layout.has-selection
-    .installed-parts-desktop table {
-    min-width: 850px;
-  }
+.installed-parts-layout.has-selection
+  .installed-parts-desktop table {
+  min-width: 720px;
 }
-
+}
 /* ===== Телефон / планшет ===== */
 
 @media (max-width: 900px) {
@@ -1171,4 +1170,27 @@ tbody tr:hover {
     .detail-actions {
     flex-wrap: wrap;
   }
+}
+
+.installed-parts-desktop th,
+.installed-parts-desktop td {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.installed-parts-desktop th:nth-child(1),
+.installed-parts-desktop td:nth-child(1) {
+  width: 105px;
+  white-space: nowrap;
+}
+
+.installed-parts-desktop th:nth-child(3),
+.installed-parts-desktop td:nth-child(3),
+.installed-parts-desktop th:nth-child(4),
+.installed-parts-desktop td:nth-child(4),
+.installed-parts-desktop th:nth-child(5),
+.installed-parts-desktop td:nth-child(5),
+.installed-parts-desktop th:nth-child(6),
+.installed-parts-desktop td:nth-child(6) {
+white-space: nowrap;
 }
