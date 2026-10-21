@@ -979,3 +979,196 @@ tbody tr:hover {
     width: 100%;
   }
 }
+
+/* ===== Установленные детали ===== */
+
+.installed-parts-layout {
+  width: 100%;
+}
+
+.installed-parts-list-panel {
+  min-width: 0;
+}
+
+.installed-parts-desktop table {
+  width: 100%;
+  min-width: 900px;
+}
+
+.installed-parts-desktop {
+  max-height: calc(100vh - 270px);
+  overflow: auto;
+}
+
+.installed-parts-desktop thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8fafc;
+}
+
+.installed-part-name-cell {
+  min-width: 220px;
+}
+
+.remaining-mileage {
+  white-space: nowrap;
+}
+
+.remaining-mileage.normal,
+.part-remaining.normal,
+.installed-part-mobile-remaining.normal {
+  color: #166534;
+}
+
+.remaining-mileage.soon,
+.part-remaining.soon,
+.installed-part-mobile-remaining.soon {
+  color: #b45309;
+  font-weight: 700;
+}
+
+.remaining-mileage.overdue,
+.part-remaining.overdue,
+.installed-part-mobile-remaining.overdue {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.installed-parts-mobile {
+  display: none;
+}
+
+.installed-part-detail-panel {
+  min-width: 0;
+}
+
+/* Компьютер: карточка детали справа */
+@media (min-width: 901px) {
+  .installed-parts-layout.has-selection {
+    display: grid;
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(340px, 420px);
+    gap: 18px;
+    align-items: start;
+  }
+
+  .installed-parts-layout.has-selection
+    .installed-part-detail-panel {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+  }
+
+  .installed-parts-layout.has-selection
+    .installed-parts-desktop table {
+    min-width: 850px;
+  }
+}
+
+/* ===== Телефон / планшет ===== */
+
+@media (max-width: 900px) {
+  .installed-parts-list-header {
+    display: none;
+  }
+
+  .installed-parts-desktop {
+    display: none;
+  }
+
+  .installed-parts-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .installed-part-mobile-card {
+    width: 100%;
+    padding: 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: white;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .installed-part-mobile-card:active {
+    transform: translateY(1px);
+  }
+
+  .installed-part-mobile-name {
+    display: block;
+    margin-bottom: 7px;
+    font-size: 17px;
+    line-height: 1.3;
+    color: #0f172a;
+  }
+
+  .installed-part-mobile-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 12px;
+    color: #64748b;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .installed-part-mobile-service {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #e2e8f0;
+  }
+
+  .installed-part-mobile-service div {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .installed-part-mobile-service span {
+    color: #64748b;
+    font-size: 12px;
+  }
+
+  .installed-part-mobile-service strong {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .installed-part-mobile-remaining {
+    margin-top: 10px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .installed-parts-empty {
+    margin: 0;
+    padding: 24px 12px;
+    text-align: center;
+    color: #64748b;
+  }
+
+  /* При открытии детали список на телефоне скрываем */
+  .installed-parts-layout.has-selection
+    .installed-parts-list-panel {
+    display: none;
+  }
+
+  .installed-part-detail-panel {
+    width: 100%;
+  }
+
+  .installed-part-detail-panel
+    .detail-actions {
+    flex-wrap: wrap;
+  }
+}

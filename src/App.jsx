@@ -255,6 +255,7 @@ const [partForm, setPartForm] = useState({
   name: '',
   category: installedPartCategories[0],
   quantity: 1,
+    unit: 'шт.',
   installedDate: getTodayDate(),
   mileage: '',
   serviceLifeKm: '',
@@ -711,6 +712,88 @@ function isReplacementOverdue(part) {
   return currentMileage > replacementMileage
 }
 
+function getRemainingMileage(part) {
+  const replacementMileage =
+    getReplacementMileage(part)
+
+  const currentMileage =
+    Number(getLastMileage())
+
+  if (
+    replacementMileage == null ||
+    !Number.isFinite(currentMileage) ||
+    currentMileage <= 0
+  ) {
+    return null
+  }
+
+  return (
+    Number(replacementMileage) -
+    currentMileage
+  )
+}
+
+function getRemainingMileageStatus(part) {
+  const remaining =
+    getRemainingMileage(part)
+
+  if (remaining == null) {
+    return ''
+  }
+
+  if (remaining <= 0) {
+    return 'overdue'
+  }
+
+  if (remaining <= 500) {
+    return 'soon'
+  }
+
+  return 'normal'
+}
+
+function formatRemainingMileage(part) {
+  const remaining =
+    getRemainingMileage(part)
+
+  if (remaining == null) {
+    return '—'
+  }
+
+  if (remaining < 0) {
+    return `Просрочено ${Math.abs(
+      remaining
+    ).toLocaleString('lt-LT')} км`
+  }
+
+  if (remaining === 0) {
+    return 'Пора менять'
+  }
+
+  return `${remaining.toLocaleString(
+    'lt-LT'
+  )} км`
+}
+
+function formatPartQuantity(part) {
+  const quantity =
+    Number(part.quantity ?? 1)
+
+  const unit =
+    part.unit || 'шт.'
+
+  if (!Number.isFinite(quantity)) {
+    return `1 ${unit}`
+  }
+
+  return `${quantity.toLocaleString(
+    'lt-LT',
+    {
+      maximumFractionDigits: 3,
+    }
+  )} ${unit}`
+}
+
 function getMaintenanceLinkedPart(task) {
   if (!task.installedPartId) {
     return null
@@ -892,6 +975,7 @@ setNewPartPhotos([])
     name: '',
     category: installedPartCategories[0],
     quantity: 1,
+    unit: 'шт.',
     installedDate: getTodayDate(),
     mileage: getLastMileage(),
       serviceLifeKm: '',
@@ -950,6 +1034,7 @@ function handleEditInstalledPart(part) {
     category:
   part.category || installedPartCategories[0],
     quantity: part.quantity || 1,
+    unit: part.unit || 'шт.',
     installedDate:
       part.installedDate || getTodayDate(),
     mileage: part.mileage ?? '',
@@ -1037,6 +1122,7 @@ const partId = await saveInstalledPart({
   name: partForm.name.trim(),
   category: partForm.category,
   quantity: Number(partForm.quantity) || 1,
+  unit: partForm.unit,
   installedDate: partForm.installedDate,
   mileage:
     partForm.mileage === ''
@@ -1527,14 +1613,14 @@ if (expensesLoading) {
     </button>
   )}
 
-  {citroenSection === 'parts' && (
-    <button
-      className="primary-button"
-      onClick={handleOpenAddPart}
-    >
-      + Добавить деталь
-    </button>
-  )}
+{citroenSection === 'parts' && (
+  <button
+    className="primary-button"
+    onClick={handleOpenAddPart}
+  >
+    + Добавить деталь
+  </button>
+)}
 
   {citroenSection === 'maintenance' && (
     <button
@@ -1741,18 +1827,37 @@ if (expensesLoading) {
   </select>
 </label>
 
-        <label>
-          <span>Количество</span>
-          <input
-            type="number"
-            name="quantity"
-            value={partForm.quantity}
-            onChange={handlePartChange}
-            min="1"
-            step="1"
-            required
-          />
-        </label>
+<label>
+  <span>Количество</span>
+
+  <input
+    type="number"
+    name="quantity"
+    value={partForm.quantity}
+    onChange={handlePartChange}
+    min="0.001"
+    step="0.001"
+    required
+  />
+</label>
+
+<label>
+  <span>Единица</span>
+
+  <select
+    name="unit"
+    value={partForm.unit}
+    onChange={handlePartChange}
+  >
+    <option value="шт.">шт.</option>
+    <option value="л">л</option>
+    <option value="мл">мл</option>
+    <option value="компл.">компл.</option>
+    <option value="м">м</option>
+    <option value="г">г</option>
+    <option value="кг">кг</option>
+  </select>
+</label>
 
         <label>
           <span>Дата установки</span>
@@ -1894,253 +1999,471 @@ if (expensesLoading) {
       </form>
     </section>
   )}
+
 {citroenSection === 'parts' && (
-    <>
-      {selectedInstalledPart ? (
-        <section className="part-detail">
-<div className="detail-actions">
-  <button
-    type="button"
-    className="secondary-button"
-    onClick={() => setSelectedInstalledPart(null)}
+  <div
+    className={`installed-parts-layout ${
+      selectedInstalledPart
+        ? 'has-selection'
+        : ''
+    }`}
   >
-    ← Назад к списку
-  </button>
+    <section className="expenses-section installed-parts-list-panel">
+      <div className="section-header installed-parts-list-header">
+        <h2>Установленные детали</h2>
+      </div>
 
- <button
-  type="button"
-  className="edit-button"
-  onClick={() =>
-    handleEditInstalledPart(selectedInstalledPart)
-  }
->
-  Редактировать
-</button>
+      <div className="installed-parts-filters">
+        <input
+          type="search"
+          value={installedPartSearch}
+          onChange={(event) =>
+            setInstalledPartSearch(
+              event.target.value
+            )
+          }
+          placeholder="Поиск деталей..."
+        />
 
-<button
-  type="button"
-  className="delete-button"
-  onClick={() =>
-    handleDeleteInstalledPart(selectedInstalledPart)
-  }
->
-  Удалить
-</button>
-
-</div>
-
-          <h2>{selectedInstalledPart.name}</h2>
-
-{selectedInstalledPart.photos?.length > 0 && (
-  <div className="installed-part-photos">
-    {selectedInstalledPart.photos.map((photo) => (
-      <InstalledPartPhoto
-        key={photo.id}
-        photo={photo}
-        alt={selectedInstalledPart.name}
-        onOpen={setOpenedPartPhoto}
-        onDelete={
-          handleDeleteInstalledPartPhoto
-        }
-      />
-    ))}
-  </div>
-)}
-
-          <div className="part-detail-fields">
-            <p>
-              <strong>Дата установки:</strong>{' '}
-              {formatDate(
-                selectedInstalledPart.installedDate
-              )}
-            </p>
-<p>
-  <strong>Количество:</strong>{' '}
-  {selectedInstalledPart.quantity || 1}
-</p>
-<p>
-  <strong>Категория:</strong>{' '}
-  {selectedInstalledPart.category || '—'}
-</p>
-            <p>
-              <strong>Пробег:</strong>{' '}
-              {selectedInstalledPart.mileage
-                ? `${selectedInstalledPart.mileage.toLocaleString(
-                    'lt-LT'
-                  )} км`
-                : '—'}
-            </p>
-<p>
-  <strong>Ресурс:</strong>{' '}
-  {selectedInstalledPart.serviceLifeKm
-    ? `${selectedInstalledPart.serviceLifeKm.toLocaleString(
-        'lt-LT'
-      )} км`
-    : '—'}
-</p>
-            <p>
-              <strong>Производитель:</strong>{' '}
-              {selectedInstalledPart.manufacturer || '—'}
-            </p>
-
-            <p>
-              <strong>Артикул:</strong>{' '}
-              {selectedInstalledPart.article || '—'}
-            </p>
-
-            <p>
-              <strong>OEM:</strong>{' '}
-              {selectedInstalledPart.oem || '—'}
-            </p>
-          </div>
-
-          {selectedInstalledPart.note && (
-            <div className="part-note">
-              <strong>Примечание</strong>
-              <p>{selectedInstalledPart.note}</p>
-            </div>
-          )}
-        </section>
-      ) : (
-        <section className="expenses-section">
-          <div className="section-header">
-            <h2>Установленные детали</h2>
-          </div>
-<div className="installed-parts-filters">
-  <input
-    type="search"
-    value={installedPartSearch}
-    onChange={(event) =>
-      setInstalledPartSearch(
-        event.target.value
-      )
-    }
-    placeholder="Поиск деталей..."
-    aria-label="Поиск установленных деталей"
-  />
-
-  <select
-    value={installedPartCategory}
-    onChange={(event) =>
-      setInstalledPartCategory(
-        event.target.value
-      )
-    }
-  >
-    <option value="Все">
-      Все категории
-    </option>
-
-    {installedPartCategories.map(
-      (category) => (
-        <option
-          key={category}
-          value={category}
+        <select
+          value={installedPartCategory}
+          onChange={(event) =>
+            setInstalledPartCategory(
+              event.target.value
+            )
+          }
         >
-          {category}
-        </option>
-      )
-    )}
-  </select>
-</div>
+          <option value="Все">
+            Все категории
+          </option>
 
-          {installedPartsLoading ? (
-            <p style={{ padding: '20px' }}>
-              Загрузка деталей...
-            </p>
-          ) : (
-            <div className="table-wrapper">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Дата</th>
-                    <th>Деталь</th>
-                    <th>Категория</th>
-                    <th>Производитель</th>
-                    <th>Артикул</th>
-                    <th>Пробег</th>
-                    <th>
-  <button
-    type="button"
-    className="table-sort-button"
-    onClick={() =>
-      setReplacementSortOrder((current) =>
-        current === 'asc' ? 'desc' : 'asc'
-      )
-    }
-  >
-    Замена
-    <span className="sort-arrow">
-      {replacementSortOrder === 'asc' ? '↑' : '↓'}
-    </span>
-  </button>
-</th>
-                    
-                  </tr>
-                </thead>
+          {installedPartCategories.map(
+            (category) => (
+              <option
+                key={category}
+                value={category}
+              >
+                {category}
+              </option>
+            )
+          )}
+        </select>
+      </div>
 
-                <tbody>
-                  {sortedInstalledParts.map((part) => (
-                    <tr
-                      key={part.id}
-                      className="installed-part-row"
+      {installedPartsLoading ? (
+        <p style={{ padding: '20px' }}>
+          Загрузка деталей...
+        </p>
+      ) : (
+        <>
+          <div className="table-wrapper installed-parts-desktop">
+            <table>
+              <thead>
+                <tr>
+                  <th>Дата</th>
+                  <th>Деталь</th>
+  
+                  <th>Установлено</th>
+                  <th>Ресурс</th>
+
+                  <th>
+                    <button
+                      type="button"
+                      className="table-sort-button"
                       onClick={() =>
-                        setSelectedInstalledPart(part)
+                        setReplacementSortOrder(
+                          (current) =>
+                            current === 'asc'
+                              ? 'desc'
+                              : 'asc'
+                        )
                       }
                     >
-                      <td>
-                        {formatDate(part.installedDate)}
-                      </td>
+                      Замена{' '}
+                      {replacementSortOrder ===
+                      'asc'
+                        ? '↑'
+                        : '↓'}
+                    </button>
+                  </th>
 
-                      <td>{part.name}</td>
-<td>{part.category || '—'}</td>
-                      <td>
-                        {part.manufacturer || '—'}
-                      </td>
+                  <th>Осталось</th>
+                </tr>
+              </thead>
 
-                      <td>
-                        {part.article || '—'}
-                      </td>
-<td>
-                        {part.mileage
-                          ? `${part.mileage.toLocaleString(
+              <tbody>
+                {sortedInstalledParts.map(
+                  (part) => {
+                    const replacementMileage =
+                      getReplacementMileage(part)
+
+                    const remainingStatus =
+                      getRemainingMileageStatus(
+                        part
+                      )
+
+                    return (
+                      <tr
+                        key={part.id}
+                        className="installed-part-row"
+                        onClick={() =>
+                          setSelectedInstalledPart(
+                            part
+                          )
+                        }
+                      >
+                        <td>
+                          {formatDate(
+                            part.installedDate
+                          )}
+                        </td>
+
+                        <td className="installed-part-name-cell">
+                          {part.name}
+                        </td>
+
+                  
+
+                        <td>
+                          {part.mileage != null
+                            ? `${Number(
+                                part.mileage
+                              ).toLocaleString(
+                                'lt-LT'
+                              )} км`
+                            : '—'}
+                        </td>
+
+                        <td>
+                          {part.serviceLifeKm
+                            ? `${Number(
+                                part.serviceLifeKm
+                              ).toLocaleString(
+                                'lt-LT'
+                              )} км`
+                            : '—'}
+                        </td>
+
+                        <td>
+                          {replacementMileage != null
+                            ? `${Number(
+                                replacementMileage
+                              ).toLocaleString(
+                                'lt-LT'
+                              )} км`
+                            : '—'}
+                        </td>
+
+                        <td
+                          className={`remaining-mileage ${remainingStatus}`}
+                        >
+                          {formatRemainingMileage(
+                            part
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  }
+                )}
+
+                {sortedInstalledParts.length ===
+                  0 && (
+                  <tr>
+                    <td colSpan="6">
+                      {installedParts.length === 0
+                        ? 'Установленных деталей пока нет.'
+                        : 'Подходящих деталей не найдено.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="installed-parts-mobile">
+            {sortedInstalledParts.map(
+              (part) => {
+                const replacementMileage =
+                  getReplacementMileage(part)
+
+                const remainingStatus =
+                  getRemainingMileageStatus(
+                    part
+                  )
+
+                return (
+                  <button
+                    key={part.id}
+                    type="button"
+                    className="installed-part-mobile-card"
+                    onClick={() =>
+                      setSelectedInstalledPart(
+                        part
+                      )
+                    }
+                  >
+                    <strong className="installed-part-mobile-name">
+                      {part.name}
+                    </strong>
+
+                    <div className="installed-part-mobile-meta">
+                      <span>
+                        {formatDate(
+                          part.installedDate
+                        )}
+                      </span>
+
+                      {part.mileage != null && (
+                        <>
+                          <span>•</span>
+
+                          <span>
+                            {Number(
+                              part.mileage
+                            ).toLocaleString(
                               'lt-LT'
-                            )} км`
-                          : '—'}
-                      </td>
-                      <td
-  className={
-    isReplacementOverdue(part)
-      ? 'replacement-mileage overdue'
-      : 'replacement-mileage'
-  }
->
-  {getReplacementMileage(part)
-    ? `${getReplacementMileage(part).toLocaleString(
-        'lt-LT'
-      )} км`
-    : '—'}
-</td>
+                            )}{' '}
+                            км
+                          </span>
+                        </>
+                      )}
 
-                      
-                    </tr>
-                  ))}
+                      <span>•</span>
 
-                  {installedParts.length === 0 && (
-                    <tr>
-                      <td colSpan="7">
-                        Установленных деталей пока нет.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
+                      <span>
+                        {formatPartQuantity(
+                          part
+                        )}
+                      </span>
+                    </div>
+
+                    <div className="installed-part-mobile-service">
+                      <div>
+                        <span>Ресурс</span>
+                        <strong>
+                          {part.serviceLifeKm
+                            ? `${Number(
+                                part.serviceLifeKm
+                              ).toLocaleString(
+                                'lt-LT'
+                              )} км`
+                            : '—'}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>Замена</span>
+                        <strong>
+                          {replacementMileage != null
+                            ? `${Number(
+                                replacementMileage
+                              ).toLocaleString(
+                                'lt-LT'
+                              )} км`
+                            : '—'}
+                        </strong>
+                      </div>
+                    </div>
+
+                    <div
+                      className={`installed-part-mobile-remaining ${remainingStatus}`}
+                    >
+                      {remainingStatus ===
+                      'overdue'
+                        ? ''
+                        : 'Осталось: '}
+
+                      {formatRemainingMileage(
+                        part
+                      )}
+                    </div>
+                  </button>
+                )
+              }
+            )}
+
+            {sortedInstalledParts.length ===
+              0 && (
+              <p className="installed-parts-empty">
+                Подходящих деталей не найдено.
+              </p>
+            )}
+          </div>
+        </>
       )}
-    </>
-  )}
+    </section>
+
+    {selectedInstalledPart && (
+      <section className="part-detail installed-part-detail-panel">
+        <div className="detail-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() =>
+              setSelectedInstalledPart(null)
+            }
+          >
+            ← Назад
+          </button>
+
+          <button
+            type="button"
+            className="edit-button"
+            onClick={() =>
+              handleEditInstalledPart(
+                selectedInstalledPart
+              )
+            }
+          >
+            Редактировать
+          </button>
+
+          <button
+            type="button"
+            className="delete-button"
+            onClick={() =>
+              handleDeleteInstalledPart(
+                selectedInstalledPart
+              )
+            }
+          >
+            Удалить
+          </button>
+        </div>
+
+        <h2>
+          {selectedInstalledPart.name}
+        </h2>
+
+        {selectedInstalledPart.photos
+          ?.length > 0 && (
+          <div className="installed-part-photos">
+            {selectedInstalledPart.photos.map(
+              (photo) => (
+                <InstalledPartPhoto
+                  key={photo.id}
+                  photo={photo}
+                  alt={
+                    selectedInstalledPart.name
+                  }
+                  onOpen={
+                    setOpenedPartPhoto
+                  }
+                  onDelete={
+                    handleDeleteInstalledPartPhoto
+                  }
+                />
+              )
+            )}
+          </div>
+        )}
+
+        <div className="part-detail-fields">
+          <p>
+            <strong>Категория:</strong>{' '}
+            {selectedInstalledPart.category ||
+              '—'}
+          </p>
+
+          <p>
+            <strong>Количество:</strong>{' '}
+            {formatPartQuantity(
+              selectedInstalledPart
+            )}
+          </p>
+
+          <p>
+            <strong>
+              Дата установки:
+            </strong>{' '}
+            {formatDate(
+              selectedInstalledPart.installedDate
+            )}
+          </p>
+
+          <p>
+            <strong>
+              Пробег установки:
+            </strong>{' '}
+            {selectedInstalledPart.mileage != null
+              ? `${Number(
+                  selectedInstalledPart.mileage
+                ).toLocaleString(
+                  'lt-LT'
+                )} км`
+              : '—'}
+          </p>
+
+          <p>
+            <strong>Ресурс:</strong>{' '}
+            {selectedInstalledPart.serviceLifeKm
+              ? `${Number(
+                  selectedInstalledPart.serviceLifeKm
+                ).toLocaleString(
+                  'lt-LT'
+                )} км`
+              : '—'}
+          </p>
+
+          <p>
+            <strong>
+              Следующая замена:
+            </strong>{' '}
+            {getReplacementMileage(
+              selectedInstalledPart
+            ) != null
+              ? `${getReplacementMileage(
+                  selectedInstalledPart
+                ).toLocaleString(
+                  'lt-LT'
+                )} км`
+              : '—'}
+          </p>
+
+          <p
+            className={`part-remaining ${getRemainingMileageStatus(
+              selectedInstalledPart
+            )}`}
+          >
+            <strong>До замены:</strong>{' '}
+            {formatRemainingMileage(
+              selectedInstalledPart
+            )}
+          </p>
+
+          <p>
+            <strong>
+              Производитель:
+            </strong>{' '}
+            {selectedInstalledPart.manufacturer ||
+              '—'}
+          </p>
+
+          <p>
+            <strong>Артикул:</strong>{' '}
+            {selectedInstalledPart.article ||
+              '—'}
+          </p>
+
+          <p>
+            <strong>OEM:</strong>{' '}
+            {selectedInstalledPart.oem ||
+              '—'}
+          </p>
+        </div>
+
+        {selectedInstalledPart.note && (
+          <div className="part-note">
+            <strong>Примечание</strong>
+            <p>
+              {selectedInstalledPart.note}
+            </p>
+          </div>
+        )}
+      </section>
+    )}
+  </div>
+)}
 
 {citroenSection === 'maintenance' &&
   showMaintenanceForm && (

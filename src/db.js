@@ -276,6 +276,7 @@ export async function getInstalledParts() {
         name: partData.part_name,
         category: partData.category || '',
         quantity: partData.quantity || 1,
+        unit: partData.unit || 'шт.',
         installedDate: partData.installed_date,
         mileage: partData.mileage,
         serviceLifeKm: partData.service_life_km,
@@ -295,6 +296,7 @@ export async function saveInstalledPart(part) {
     part_name: part.name,
     category: part.category || null,
     quantity: Number(part.quantity) || 1,
+    unit: part.unit || 'шт.',
     installed_date: part.installedDate,
     mileage:
       part.mileage === '' || part.mileage == null
