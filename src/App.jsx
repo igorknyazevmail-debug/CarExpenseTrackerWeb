@@ -25,6 +25,9 @@ getPurchaseItems,
 addPurchaseItem,
 updatePurchaseItemPriority,
 deletePurchaseItem,
+getCarNotes,
+saveCarNote,
+deleteCarNote,
 } from './db'
 
 const initialExpenses = [
@@ -219,21 +222,51 @@ const [purchaseText, setPurchaseText] =
 
 const [purchasePriority, setPurchasePriority] =
   useState('medium')
+
+  const [carNotes, setCarNotes] =
+  useState([])
+
+const [
+  carNotesLoading,
+  setCarNotesLoading,
+] = useState(true)
+
+const [
+  showNoteForm,
+  setShowNoteForm,
+] = useState(false)
+
+const [
+  editingNoteId,
+  setEditingNoteId,
+] = useState(null)
+
+const [noteForm, setNoteForm] =
+  useState({
+    title: '',
+    content: '',
+  })
+
 const [maintenanceLoading, setMaintenanceLoading] = useState(true)
 const [maintenanceSortOrder, setMaintenanceSortOrder] =
   useState('asc')
 const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
 const [editingMaintenanceId, setEditingMaintenanceId] = useState(null)
 
+const [maintenanceSaving, setMaintenanceSaving] =
+  useState(false)
+
 const [maintenanceForm, setMaintenanceForm] = useState({
   name: '',
   lastServiceDate: getTodayDate(),
   lastServiceMileage: '',
   intervalKm: '',
+  intervalMonths: '',
   nextServiceMileage: '',
   installedPartId: '',
   note: '',
 })
+
 const [citroenSection, setCitroenSection] = useState('expenses')
 
 const [showPartForm, setShowPartForm] = useState(false)
@@ -398,9 +431,41 @@ useEffect(() => {
   loadPurchaseItems()
 }, [session?.user?.id])
 
+useEffect(() => {
+  async function loadCarNotes() {
+    if (!session) {
+      setCarNotes([])
+      setCarNotesLoading(false)
+      return
+    }
+
+    try {
+      setCarNotesLoading(true)
+
+      const data = await getCarNotes()
+
+      setCarNotes(data)
+    } catch (error) {
+      console.error(
+        'Ошибка загрузки заметок:',
+        error
+      )
+    } finally {
+      setCarNotesLoading(false)
+    }
+  }
+
+  loadCarNotes()
+}, [session?.user?.id])
+
 async function refreshPurchaseItems() {
   const data = await getPurchaseItems()
   setPurchaseItems(data)
+}
+
+async function refreshCarNotes() {
+  const data = await getCarNotes()
+  setCarNotes(data)
 }
 
 async function refreshCurrentWorks() {
@@ -625,10 +690,163 @@ const lastFuelStats = useMemo(() => {
 
 const sortedMaintenanceTasks = useMemo(() => {
   return [...maintenanceTasks].sort((a, b) => {
-    const nextA = getMaintenanceNextMileage(a)
-    const nextB = getMaintenanceNextMileage(b)
+    function getSortInfo(task) {
+      const nextMileage =
+        getMaintenanceNextMileage(task)
 
-    if (nextA == null && nextB == null) {
+      const currentMileage =
+        Number(getLastMileage())
+
+      const remainingKm =
+        nextMileage &&
+        currentMileage
+          ? nextMileage - currentMileage
+          : null
+
+      const nextDate =
+        getMaintenanceNextDate(task)
+
+      const remainingDays =
+        nextDate
+          ? getDaysUntilDate(nextDate)
+          : null
+
+      const status =
+        getMaintenanceStatus(task)
+
+      /*
+        Для просроченных считаем,
+        насколько сильно превышен срок.
+
+        500 км просрочки = 1 условная единица
+        30 дней просрочки = 1 условная единица.
+      */
+      const overdueKmScore =
+        remainingKm !== null &&
+        remainingKm <= 0
+          ? Math.abs(remainingKm) / 500
+          : 0
+
+      const overdueDaysScore =
+        remainingDays !== null &&
+        remainingDays <= 0
+          ? Math.abs(remainingDays) / 30
+          : 0
+
+      const overdueScore =
+        Math.max(
+          overdueKmScore,
+          overdueDaysScore
+        )
+
+      /*
+        Для приближающихся работ:
+        чем меньше значение, тем ближе срок.
+
+        250 км → 0.5
+        15 дней → 0.5
+      */
+      const soonScores = []
+
+      if (
+        remainingKm !== null &&
+        remainingKm > 0 &&
+        remainingKm <= 500
+      ) {
+        soonScores.push(
+          remainingKm / 500
+        )
+      }
+
+      if (
+        remainingDays !== null &&
+        remainingDays > 0 &&
+        remainingDays <= 30
+      ) {
+        soonScores.push(
+          remainingDays / 30
+        )
+      }
+
+      const soonScore =
+        soonScores.length > 0
+          ? Math.min(...soonScores)
+          : Infinity
+
+      return {
+        status,
+        overdueScore,
+        soonScore,
+        nextMileage,
+      }
+    }
+
+    const infoA = getSortInfo(a)
+    const infoB = getSortInfo(b)
+
+    const statusOrder = {
+      overdue: 0,
+      soon: 1,
+      normal: 2,
+    }
+
+    const orderA =
+      statusOrder[infoA.status] ?? 2
+
+    const orderB =
+      statusOrder[infoB.status] ?? 2
+
+    // 1. Сначала по статусу
+    if (orderA !== orderB) {
+      return orderA - orderB
+    }
+
+    // 2. Среди просроченных:
+    // сильнее просроченные выше
+    if (
+      infoA.status === 'overdue' &&
+      infoB.status === 'overdue'
+    ) {
+      if (
+        infoA.overdueScore !==
+        infoB.overdueScore
+      ) {
+        return (
+          infoB.overdueScore -
+          infoA.overdueScore
+        )
+      }
+    }
+
+    // 3. Среди приближающихся:
+    // ближайший срок выше
+    if (
+      infoA.status === 'soon' &&
+      infoB.status === 'soon'
+    ) {
+      if (
+        infoA.soonScore !==
+        infoB.soonScore
+      ) {
+        return (
+          infoA.soonScore -
+          infoB.soonScore
+        )
+      }
+    }
+
+    // 4. Для одинакового приоритета
+    // оставляем сортировку по пробегу
+    const nextA =
+      infoA.nextMileage
+
+    const nextB =
+      infoB.nextMileage
+
+    if (
+      nextA == null &&
+      nextB == null
+    ) {
       return 0
     }
 
@@ -640,7 +858,9 @@ const sortedMaintenanceTasks = useMemo(() => {
       return -1
     }
 
-    if (maintenanceSortOrder === 'asc') {
+    if (
+      maintenanceSortOrder === 'asc'
+    ) {
       return nextA - nextB
     }
 
@@ -650,6 +870,7 @@ const sortedMaintenanceTasks = useMemo(() => {
   maintenanceTasks,
   maintenanceSortOrder,
   installedParts,
+  expenses,
 ])
 
 function handleChange(event) {
@@ -844,21 +1065,288 @@ function getMaintenanceNextMileage(task) {
   return null
 }
 
-function isMaintenanceOverdue(task) {
+function addMonthsToDateString(
+  dateString,
+  months
+) {
+  if (!dateString || !months) {
+    return null
+  }
+
+  const [year, month, day] =
+    dateString
+      .split('-')
+      .map(Number)
+
+  const monthOffset =
+    month - 1 + Number(months)
+
+  const targetYear =
+    year + Math.floor(monthOffset / 12)
+
+  const targetMonth =
+    ((monthOffset % 12) + 12) % 12
+
+  const lastDayOfTargetMonth =
+    new Date(
+      targetYear,
+      targetMonth + 1,
+      0
+    ).getDate()
+
+  const targetDay =
+    Math.min(
+      day,
+      lastDayOfTargetMonth
+    )
+
+  return [
+    targetYear,
+    String(targetMonth + 1)
+      .padStart(2, '0'),
+    String(targetDay)
+      .padStart(2, '0'),
+  ].join('-')
+}
+
+function getMaintenanceNextDate(task) {
+  if (
+    !task.lastServiceDate ||
+    !task.intervalMonths
+  ) {
+    return null
+  }
+
+  return addMonthsToDateString(
+    task.lastServiceDate,
+    task.intervalMonths
+  )
+}
+
+function getDaysUntilDate(dateString) {
+  if (!dateString) {
+    return null
+  }
+
+  const targetParts =
+    dateString
+      .split('-')
+      .map(Number)
+
+  const todayParts =
+    getTodayDate()
+      .split('-')
+      .map(Number)
+
+  const targetUtc = Date.UTC(
+    targetParts[0],
+    targetParts[1] - 1,
+    targetParts[2]
+  )
+
+  const todayUtc = Date.UTC(
+    todayParts[0],
+    todayParts[1] - 1,
+    todayParts[2]
+  )
+
+  return Math.round(
+    (targetUtc - todayUtc) /
+      (1000 * 60 * 60 * 24)
+  )
+}
+
+function formatMaintenanceDateRemaining(
+  task
+) {
+  const nextDate =
+    getMaintenanceNextDate(task)
+
+  if (!nextDate) {
+    return ''
+  }
+
+  const days =
+    getDaysUntilDate(nextDate)
+
+  if (days == null) {
+    return ''
+  }
+
+  if (days === 0) {
+    return 'Сегодня'
+  }
+
+  const overdue = days < 0
+  const absoluteDays = Math.abs(days)
+
+  if (absoluteDays < 60) {
+    return overdue
+      ? `Просрочено на ${absoluteDays} дн.`
+      : `через ${absoluteDays} дн.`
+  }
+
+  const months =
+    Math.max(
+      1,
+      Math.round(
+        absoluteDays / 30.44
+      )
+    )
+
+  if (months < 24) {
+    return overdue
+      ? `Просрочено на ${months} мес.`
+      : `через ${months} мес.`
+  }
+
+  const years =
+    Math.floor(months / 12)
+
+  const remainingMonths =
+    months % 12
+
+  const period =
+    remainingMonths
+      ? `${years} г. ${remainingMonths} мес.`
+      : `${years} г.`
+
+  return overdue
+    ? `Просрочено на ${period}`
+    : `через ${period}`
+}
+
+function getMaintenanceDateStatus(task) {
+  const nextDate =
+    getMaintenanceNextDate(task)
+
+  const days =
+    getDaysUntilDate(nextDate)
+
+  if (days == null) {
+    return ''
+  }
+
+  if (days <= 0) {
+    return 'overdue'
+  }
+
+  if (days <= 30) {
+    return 'soon'
+  }
+
+  return 'normal'
+}
+
+function getMaintenanceStatus(task) {
   const nextMileage =
     getMaintenanceNextMileage(task)
 
   const currentMileage =
     Number(getLastMileage())
 
-  if (!nextMileage || !currentMileage) {
-    return false
+  const remainingKm =
+    nextMileage &&
+    currentMileage
+      ? nextMileage - currentMileage
+      : null
+
+  const nextDate =
+    getMaintenanceNextDate(task)
+
+  const remainingDays =
+    nextDate
+      ? getDaysUntilDate(nextDate)
+      : null
+
+  const mileageOverdue =
+    remainingKm !== null &&
+    remainingKm <= 0
+
+  const dateOverdue =
+    remainingDays !== null &&
+    remainingDays <= 0
+
+  if (
+    mileageOverdue ||
+    dateOverdue
+  ) {
+    return 'overdue'
   }
 
-  return currentMileage > nextMileage
+  const mileageSoon =
+    remainingKm !== null &&
+    remainingKm <= 500
+
+  const dateSoon =
+    remainingDays !== null &&
+    remainingDays <= 30
+
+  if (
+    mileageSoon ||
+    dateSoon
+  ) {
+    return 'soon'
+  }
+
+  return 'normal'
 }
 
+function isMaintenanceOverdue(task) {
+  return (
+    getMaintenanceStatus(task) ===
+    'overdue'
+  )
+}
 
+function getMaintenanceStatusLabel(task) {
+  const status =
+    getMaintenanceStatus(task)
+
+  if (status === 'overdue') {
+    return 'Просрочено'
+  }
+
+  if (status === 'soon') {
+    return 'Скоро'
+  }
+
+  return ''
+}
+
+function formatMaintenanceMileageRemaining(
+  task
+) {
+  const nextMileage =
+    getMaintenanceNextMileage(task)
+
+  const currentMileage =
+    Number(getLastMileage())
+
+  if (
+    !nextMileage ||
+    !currentMileage
+  ) {
+    return ''
+  }
+
+  const remaining =
+    nextMileage - currentMileage
+
+  if (remaining < 0) {
+    return `Просрочено на ${Math.abs(
+      remaining
+    ).toLocaleString('lt-LT')} км`
+  }
+
+  if (remaining === 0) {
+    return 'Пора выполнять'
+  }
+
+  return `Осталось ${remaining.toLocaleString(
+    'lt-LT'
+  )} км`
+}
 
 const sortedInstalledParts = useMemo(() => {
   const searchQuery =
@@ -1189,15 +1677,15 @@ setShowPartForm(false)
 function handleOpenAddMaintenance() {
   setEditingMaintenanceId(null)
 
-  setMaintenanceForm({
-    name: '',
-    lastServiceDate: getTodayDate(),
-    lastServiceMileage: getLastMileage(),
-    intervalKm: '',
-      nextServiceMileage: '',
-    installedPartId: '',
-    note: '',
-  })
+setMaintenanceForm({
+  name: '',
+  lastServiceDate: getTodayDate(),
+  lastServiceMileage: getLastMileage(),
+  intervalKm: '',
+  nextServiceMileage: '',
+  installedPartId: '',
+  note: '',
+})
 
   setShowMaintenanceForm(true)
 }
@@ -1205,15 +1693,16 @@ function handleOpenAddMaintenance() {
 function handleEditMaintenance(task) {
   setEditingMaintenanceId(task.id)
 
-  setMaintenanceForm({
-    name: task.name || '',
-    lastServiceDate: task.lastServiceDate || '',
-    lastServiceMileage: task.lastServiceMileage ?? '',
-    intervalKm: task.intervalKm ?? '',
-    nextServiceMileage: task.nextServiceMileage ?? '',
-    installedPartId: task.installedPartId || '',
-    note: task.note || '',
-  })
+setMaintenanceForm({
+  name: task.name || '',
+  lastServiceDate: task.lastServiceDate || '',
+  lastServiceMileage: task.lastServiceMileage ?? '',
+  intervalKm: task.intervalKm ?? '',
+  intervalMonths: task.intervalMonths ?? '',
+  nextServiceMileage: task.nextServiceMileage ?? '',
+  installedPartId: task.installedPartId || '',
+  note: task.note || '',
+})
 
   setShowMaintenanceForm(true)
 
@@ -1264,11 +1753,18 @@ function handleCancelMaintenanceForm() {
 async function handleMaintenanceSubmit(event) {
   event.preventDefault()
 
+  if (maintenanceSaving) {
+    return
+  }
+
   if (!maintenanceForm.name.trim()) {
     return
   }
 
+  setMaintenanceSaving(true)
+
   try {
+
     await saveMaintenanceTask({
       id: editingMaintenanceId || undefined,
       name: maintenanceForm.name.trim(),
@@ -1281,12 +1777,17 @@ async function handleMaintenanceSubmit(event) {
           ? null
           : Number(maintenanceForm.lastServiceMileage),
 
-      intervalKm:
-        maintenanceForm.intervalKm === ''
-          ? null
-          : Number(maintenanceForm.intervalKm),
+intervalKm:
+  maintenanceForm.intervalKm === ''
+    ? null
+    : Number(maintenanceForm.intervalKm),
 
-          nextServiceMileage:
+intervalMonths:
+  maintenanceForm.intervalMonths === ''
+    ? null
+    : Number(maintenanceForm.intervalMonths),
+
+nextServiceMileage:
   maintenanceForm.nextServiceMileage === ''
     ? null
     : Number(maintenanceForm.nextServiceMileage),
@@ -1310,6 +1811,8 @@ async function handleMaintenanceSubmit(event) {
     window.alert(
       'Не удалось сохранить регламентную работу.'
     )
+  } finally {
+    setMaintenanceSaving(false)
   }
 }
 
@@ -1546,6 +2049,117 @@ async function handleDeleteExpense(expense) {
   }
 }
 
+function resetNoteForm() {
+  setNoteForm({
+    title: '',
+    content: '',
+  })
+}
+
+function handleOpenAddNote() {
+  setEditingNoteId(null)
+  resetNoteForm()
+  setShowNoteForm(true)
+}
+
+function handleEditCarNote(note) {
+  setEditingNoteId(note.id)
+
+  setNoteForm({
+    title: note.title || '',
+    content: note.content || '',
+  })
+
+  setShowNoteForm(true)
+
+  window.scrollTo({
+    top: 0,
+    behavior: 'smooth',
+  })
+}
+
+function handleNoteChange(event) {
+  const { name, value } =
+    event.target
+
+  setNoteForm((current) => ({
+    ...current,
+    [name]: value,
+  }))
+}
+
+function handleCancelNoteForm() {
+  setEditingNoteId(null)
+  resetNoteForm()
+  setShowNoteForm(false)
+}
+
+async function handleNoteSubmit(event) {
+  event.preventDefault()
+
+  if (
+    !noteForm.title.trim() ||
+    !noteForm.content.trim()
+  ) {
+    return
+  }
+
+  try {
+    await saveCarNote({
+      id:
+        editingNoteId ||
+        undefined,
+
+      title:
+        noteForm.title,
+
+      content:
+        noteForm.content,
+    })
+
+    await refreshCarNotes()
+
+    setEditingNoteId(null)
+    resetNoteForm()
+    setShowNoteForm(false)
+  } catch (error) {
+    console.error(
+      'Ошибка сохранения заметки:',
+      error
+    )
+
+    window.alert(
+      'Не удалось сохранить заметку.'
+    )
+  }
+}
+
+async function handleDeleteCarNote(note) {
+  const confirmed =
+    window.confirm(
+      `Удалить заметку "${note.title}"?`
+    )
+
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    await deleteCarNote(note.id)
+
+    await refreshCarNotes()
+  } catch (error) {
+    console.error(
+      'Ошибка удаления заметки:',
+      error
+    )
+
+    window.alert(
+      'Не удалось удалить заметку.'
+    )
+  }
+}
+
 if (authLoading) {
   return (
     <main className="app">
@@ -1570,7 +2184,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-<span className="app-version">v3.2.1</span>
+<span className="app-version">v3.3.1</span>
 </div>
 </div>
 <div className="header-section-control">
@@ -1600,6 +2214,11 @@ if (expensesLoading) {
     <option value="buy">
       Купить
     </option>
+
+    <option value="notes">
+  Заметки
+</option>
+
   </select>
 </div>
 
@@ -1630,6 +2249,15 @@ if (expensesLoading) {
       + Добавить работу
     </button>
   )}
+
+{citroenSection === 'notes' && (
+  <button
+    className="primary-button"
+    onClick={handleOpenAddNote}
+  >
+    + Добавить заметку
+  </button>
+)}
 
   <button
     className="secondary-button"
@@ -1990,11 +2618,15 @@ if (expensesLoading) {
           </button>
 
           <button
-            type="submit"
-            className="primary-button"
-          >
-            Сохранить
-          </button>
+  type="submit"
+  className="primary-button"
+  disabled={maintenanceSaving}
+>
+  {maintenanceSaving
+    ? 'Сохранение...'
+    : 'Сохранить'}
+</button>
+
         </div>
       </form>
     </section>
@@ -2524,6 +3156,21 @@ if (expensesLoading) {
             placeholder="Например: 10000"
           />
         </label>
+
+<label>
+  <span>Интервал по времени, мес.</span>
+
+  <input
+    type="number"
+    name="intervalMonths"
+    value={maintenanceForm.intervalMonths}
+    onChange={handleMaintenanceChange}
+    min="1"
+    step="1"
+    placeholder="Например: 12"
+  />
+</label>
+
 <label>
   <span>Следующая замена, км</span>
   <input
@@ -2574,19 +3221,20 @@ if (expensesLoading) {
 
         <div className="form-actions">
           <button
-            type="button"
-            className="secondary-button"
-            onClick={handleCancelMaintenanceForm}
-          >
-            Отмена
-          </button>
+  type="button"
+  className="secondary-button"
+  onClick={handleCancelMaintenanceForm}
+  disabled={maintenanceSaving}
+>
+  Отмена
+</button>
 
           <button
-            type="submit"
-            className="primary-button"
-          >
-            Сохранить
-          </button>
+  type="submit"
+  className="primary-button"
+>
+  Сохранить
+</button>
         </div>
       </form>
     </section>
@@ -2608,8 +3256,8 @@ if (expensesLoading) {
               <tr>
                 <th>Работа</th>
                 <th>Привязанная деталь</th>
-                <th>Последний пробег</th>
-                <th>Интервал / ресурс</th>
+                <th>Последнее выполнение</th>
+                <th>Интервал</th>
                 <th>
   <button
     type="button"
@@ -2638,12 +3286,31 @@ if (expensesLoading) {
                 const nextMileage =
                   getMaintenanceNextMileage(task)
 
+                  const nextDate =
+  getMaintenanceNextDate(task)
+
                   const linkedPart =
                   getMaintenanceLinkedPart(task)
 
                 return (
                   <tr key={task.id}>
-                    <td>{task.name}</td>
+                    <td>
+  <div className="maintenance-task-name">
+    <span>{task.name}</span>
+
+    {getMaintenanceStatusLabel(task) && (
+      <span
+        className={`maintenance-status-badge ${getMaintenanceStatus(
+          task
+        )}`}
+      >
+        {getMaintenanceStatusLabel(
+          task
+        )}
+      </span>
+    )}
+  </div>
+</td>
   <td>
   {linkedPart ? (
     <>
@@ -2658,35 +3325,94 @@ if (expensesLoading) {
   )}
 </td>
                     <td>
-                      {task.lastServiceMileage
-                        ? `${Number(
-                            task.lastServiceMileage
-                          ).toLocaleString(
-                            'lt-LT'
-                          )} км`
-                        : '—'}
-                    </td>
+  {task.lastServiceDate && (
+    <div>
+      {formatDate(
+        task.lastServiceDate
+      )}
+    </div>
+  )}
+
+  {task.lastServiceMileage && (
+    <div>
+      {Number(
+        task.lastServiceMileage
+      ).toLocaleString(
+        'lt-LT'
+      )} км
+    </div>
+  )}
+
+  {!task.lastServiceDate &&
+    !task.lastServiceMileage &&
+    '—'}
+</td>
 
                     <td>
-                      {interval
-                        ? `${interval.toLocaleString(
-                            'lt-LT'
-                          )} км`
-                        : '—'}
-                    </td>
+  {interval && (
+    <div>
+      {interval.toLocaleString(
+        'lt-LT'
+      )} км
+    </div>
+  )}
 
+  {task.intervalMonths && (
+    <div>
+      {Number(
+        task.intervalMonths
+      ).toLocaleString(
+        'lt-LT'
+      )} мес.
+    </div>
+  )}
+
+  {!interval &&
+    !task.intervalMonths &&
+    '—'}
+</td>
                     <td
-                      className={
-                        isMaintenanceOverdue(task)
-                          ? 'replacement-mileage overdue'
-                          : 'replacement-mileage'
-                      }
+                      className={`replacement-mileage ${getMaintenanceStatus(
+  task
+)}`}
                     >
-                      {nextMileage
-                        ? `${nextMileage.toLocaleString(
-                            'lt-LT'
-                          )} км`
-                        : '—'}
+                      {nextMileage && (
+  <div>
+    <div>
+      {nextMileage.toLocaleString(
+        'lt-LT'
+      )} км
+    </div>
+
+    <div className="maintenance-remaining-hint">
+      {formatMaintenanceMileageRemaining(
+        task
+      )}
+    </div>
+  </div>
+)}
+
+{nextDate && (
+  <div className="maintenance-date-block">
+    <div>
+      {formatDate(nextDate)}
+    </div>
+
+    <div
+      className={`maintenance-date-remaining ${getMaintenanceDateStatus(
+        task
+      )}`}
+    >
+      {formatMaintenanceDateRemaining(
+        task
+      )}
+    </div>
+  </div>
+)}
+
+{!nextMileage &&
+  !nextDate &&
+  '—'}
                     </td>
 
                     <td className="expense-actions">
@@ -2999,6 +3725,121 @@ if (expensesLoading) {
       )}
     </section>
   )}
+
+  {citroenSection === 'notes' && (
+  <section className="expenses-section">
+    <div className="section-header">
+      <h2>Заметки</h2>
+    </div>
+
+    {showNoteForm && (
+      <form
+        className="car-note-form"
+        onSubmit={handleNoteSubmit}
+      >
+        <label>
+          <span>Заголовок</span>
+
+          <input
+            type="text"
+            name="title"
+            value={noteForm.title}
+            onChange={handleNoteChange}
+            placeholder="Например: Размер ремня генератора"
+            required
+          />
+        </label>
+
+        <label className="car-note-content-field">
+          <span>Заметка</span>
+
+          <textarea
+            name="content"
+            value={noteForm.content}
+            onChange={handleNoteChange}
+            rows="6"
+            placeholder="Введите информацию о машине..."
+            required
+          />
+        </label>
+
+        <div className="form-actions">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={handleCancelNoteForm}
+          >
+            Отмена
+          </button>
+
+          <button
+            type="submit"
+            className="primary-button"
+          >
+            {editingNoteId
+              ? 'Сохранить изменения'
+              : 'Сохранить'}
+          </button>
+        </div>
+      </form>
+    )}
+
+    {carNotesLoading ? (
+      <p style={{ padding: '20px' }}>
+        Загрузка заметок...
+      </p>
+    ) : (
+      <div className="car-notes-list">
+        {carNotes.map((note) => (
+          <article
+            key={note.id}
+            className="car-note-card"
+          >
+            <div className="car-note-header">
+              <h3>{note.title}</h3>
+
+              <div className="car-note-actions">
+                <button
+                  type="button"
+                  className="edit-button"
+                  onClick={() =>
+                    handleEditCarNote(
+                      note
+                    )
+                  }
+                >
+                  Редактировать
+                </button>
+
+                <button
+                  type="button"
+                  className="delete-button"
+                  onClick={() =>
+                    handleDeleteCarNote(
+                      note
+                    )
+                  }
+                >
+                  Удалить
+                </button>
+              </div>
+            </div>
+
+            <div className="car-note-content">
+              {note.content}
+            </div>
+          </article>
+        ))}
+
+        {carNotes.length === 0 && (
+          <p className="car-notes-empty">
+            Заметок пока нет.
+          </p>
+        )}
+      </div>
+    )}
+  </section>
+)}
 
 {citroenSection === 'expenses' && (
   <>

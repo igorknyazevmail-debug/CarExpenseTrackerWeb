@@ -633,6 +633,7 @@ export async function getMaintenanceTasks() {
     lastServiceDate: task.last_service_date,
     lastServiceMileage: task.last_service_mileage,
     intervalKm: task.interval_km,
+    intervalMonths: task.interval_months,
     nextServiceMileage: task.next_service_mileage,
     installedPartId: task.installed_part_id,
     note: task.note || '',
@@ -663,6 +664,12 @@ next_service_mileage:
         ? null
         : Number(task.intervalKm),
 
+        interval_months:
+  task.intervalMonths === '' ||
+  task.intervalMonths == null
+    ? null
+    : Number(task.intervalMonths),
+    
     installed_part_id:
       task.installedPartId || null,
 
@@ -873,6 +880,89 @@ export async function deletePurchaseItem(id) {
   if (error) {
     console.error(
       'Ошибка удаления покупки:',
+      error
+    )
+    throw error
+  }
+}
+
+export async function getCarNotes() {
+  const { data, error } = await supabase
+    .from('car_notes')
+    .select('*')
+    .order('updated_at', {
+      ascending: false,
+    })
+
+  if (error) {
+    console.error(
+      'Ошибка загрузки заметок:',
+      error
+    )
+    throw error
+  }
+
+  return (data || []).map((note) => ({
+    id: note.id,
+    title: note.title || '',
+    content: note.content || '',
+    createdAt: note.created_at,
+    updatedAt: note.updated_at,
+  }))
+}
+
+export async function saveCarNote(note) {
+  const noteData = {
+    title: note.title.trim(),
+    content: note.content.trim(),
+    updated_at: new Date().toISOString(),
+  }
+
+  if (note.id) {
+    const { data, error } = await supabase
+      .from('car_notes')
+      .update(noteData)
+      .eq('id', note.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error(
+        'Ошибка обновления заметки:',
+        error
+      )
+      throw error
+    }
+
+    return data.id
+  }
+
+  const { data, error } = await supabase
+    .from('car_notes')
+    .insert(noteData)
+    .select()
+    .single()
+
+  if (error) {
+    console.error(
+      'Ошибка добавления заметки:',
+      error
+    )
+    throw error
+  }
+
+  return data.id
+}
+
+export async function deleteCarNote(noteId) {
+  const { error } = await supabase
+    .from('car_notes')
+    .delete()
+    .eq('id', noteId)
+
+  if (error) {
+    console.error(
+      'Ошибка удаления заметки:',
       error
     )
     throw error
