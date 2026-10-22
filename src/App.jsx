@@ -4,6 +4,7 @@ import AuthScreen from './AuthScreen'
 import { supabase } from './lib/supabaseClient'
 
 import {
+    getCars,
   getAllExpenses,
   saveExpense,
   deleteExpense,
@@ -169,36 +170,146 @@ function InstalledPartPhoto({
 
 function App() {
   const [session, setSession] = useState(null)
-const [authLoading, setAuthLoading] = useState(true)
 
+  const [cars, setCars] = useState([])
+const [selectedCarId, setSelectedCarId] =
+  useState('')
+const [carsLoading, setCarsLoading] =
+  useState(true)
+
+const [authLoading, setAuthLoading] = useState(true)
 useEffect(() => {
   let mounted = true
 
-  supabase.auth
-    .getSession()
-    .then(({ data }) => {
-      if (!mounted) return
+  async function loadSession() {
+    try {
+      const {
+        data: {
+          session: currentSession,
+        },
+        error,
+      } =
+        await supabase.auth.getSession()
 
-      setSession(data.session)
-      setAuthLoading(false)
-    })
+      if (error) {
+        console.error(
+          'Ошибка проверки сессии:',
+          error
+        )
+      }
+
+      if (!mounted) {
+        return
+      }
+
+      setSession(
+        currentSession || null
+      )
+    } catch (error) {
+      console.error(
+        'Ошибка проверки входа:',
+        error
+      )
+
+      if (mounted) {
+        setSession(null)
+      }
+    } finally {
+      if (mounted) {
+        setAuthLoading(false)
+      }
+    }
+  }
+
+  loadSession()
 
   const {
     data: { subscription },
-  } = supabase.auth.onAuthStateChange(
-    (_event, currentSession) => {
-      if (!mounted) return
+  } =
+    supabase.auth.onAuthStateChange(
+      (_event, currentSession) => {
+        if (!mounted) {
+          return
+        }
 
-      setSession(currentSession)
-      setAuthLoading(false)
-    }
-  )
+        setSession(
+          currentSession || null
+        )
+
+        setAuthLoading(false)
+      }
+    )
 
   return () => {
     mounted = false
+
     subscription.unsubscribe()
   }
 }, [])
+
+useEffect(() => {
+  async function loadCars() {
+    if (!session) {
+      setCars([])
+      setSelectedCarId('')
+      setCarsLoading(false)
+      return
+    }
+
+    try {
+      setCarsLoading(true)
+
+      const data = await getCars()
+
+      setCars(data)
+
+      setSelectedCarId(
+        (current) => {
+          if (
+            current &&
+            data.some(
+              (car) =>
+                car.id === current
+            )
+          ) {
+            return current
+          }
+
+          const citroen =
+            data.find(
+              (car) =>
+                car.slug ===
+                'citroen'
+            )
+
+          return (
+            citroen?.id ||
+            data[0]?.id ||
+            ''
+          )
+        }
+      )
+    } catch (error) {
+      console.error(
+        'Ошибка загрузки автомобилей:',
+        error
+      )
+
+      setCars([])
+      setSelectedCarId('')
+    } finally {
+      setCarsLoading(false)
+    }
+  }
+
+  loadCars()
+}, [session?.user?.id])
+
+const selectedCar =
+  cars.find(
+    (car) =>
+      car.id === selectedCarId
+  ) || null
 
 const [expenses, setExpenses] = useState([])
 const [expensesLoading, setExpensesLoading] = useState(true)
@@ -301,7 +412,10 @@ const [partForm, setPartForm] = useState({
 
 useEffect(() => {
   async function loadExpenses() {
-    if (!session) {
+    if (
+  !session ||
+  !selectedCarId
+) {
       setExpenses([])
       setExpensesLoading(false)
       return
@@ -310,7 +424,10 @@ useEffect(() => {
     try {
       setExpensesLoading(true)
 
-      const data = await getAllExpenses()
+      const data =
+  await getAllExpenses(
+    selectedCarId
+  )
 
       setExpenses(data)
     } catch (error) {
@@ -321,11 +438,17 @@ useEffect(() => {
   }
 
   loadExpenses()
-}, [session?.user?.id])
+}, [
+  session?.user?.id,
+  selectedCarId,
+])
 
 useEffect(() => {
   async function loadInstalledParts() {
-    if (!session) {
+    if (
+  !session ||
+  !selectedCarId
+) {
       setInstalledParts([])
       setInstalledPartsLoading(false)
       return
@@ -334,7 +457,10 @@ useEffect(() => {
     try {
       setInstalledPartsLoading(true)
 
-      const data = await getInstalledParts()
+      const data =
+  await getInstalledParts(
+    selectedCarId
+  )
 
       setInstalledParts(data)
     } catch (error) {
@@ -348,11 +474,17 @@ useEffect(() => {
   }
 
   loadInstalledParts()
-}, [session?.user?.id])
+}, [
+  session?.user?.id,
+  selectedCarId,
+])
 
 useEffect(() => {
   async function loadMaintenanceTasks() {
-    if (!session) {
+    if (
+  !session ||
+  !selectedCarId
+) {
       setMaintenanceTasks([])
       setMaintenanceLoading(false)
       return
@@ -361,7 +493,10 @@ useEffect(() => {
     try {
       setMaintenanceLoading(true)
 
-      const data = await getMaintenanceTasks()
+      const data =
+  await getMaintenanceTasks(
+    selectedCarId
+  )
 
       setMaintenanceTasks(data)
     } catch (error) {
@@ -375,11 +510,17 @@ useEffect(() => {
   }
 
   loadMaintenanceTasks()
-}, [session?.user?.id])
+}, [
+  session?.user?.id,
+  selectedCarId,
+])
 
 useEffect(() => {
   async function loadCurrentWorks() {
-    if (!session) {
+    if (
+  !session ||
+  !selectedCarId
+) {
       setCurrentWorks([])
       setCurrentWorksLoading(false)
       return
@@ -388,7 +529,10 @@ useEffect(() => {
     try {
       setCurrentWorksLoading(true)
 
-      const data = await getCurrentWorks()
+      const data =
+  await getCurrentWorks(
+    selectedCarId
+  )
 
       setCurrentWorks(data)
     } catch (error) {
@@ -402,11 +546,17 @@ useEffect(() => {
   }
 
   loadCurrentWorks()
-}, [session?.user?.id])
+}, [
+  session?.user?.id,
+  selectedCarId,
+])
 
 useEffect(() => {
   async function loadPurchaseItems() {
-    if (!session) {
+    if (
+  !session ||
+  !selectedCarId
+) {
       setPurchaseItems([])
       setPurchaseItemsLoading(false)
       return
@@ -415,7 +565,10 @@ useEffect(() => {
     try {
       setPurchaseItemsLoading(true)
 
-      const data = await getPurchaseItems()
+      const data =
+  await getPurchaseItems(
+    selectedCarId
+  )
 
       setPurchaseItems(data)
     } catch (error) {
@@ -429,11 +582,17 @@ useEffect(() => {
   }
 
   loadPurchaseItems()
-}, [session?.user?.id])
+}, [
+  session?.user?.id,
+  selectedCarId,
+])
 
 useEffect(() => {
   async function loadCarNotes() {
-    if (!session) {
+    if (
+  !session ||
+  !selectedCarId
+) {
       setCarNotes([])
       setCarNotesLoading(false)
       return
@@ -442,7 +601,10 @@ useEffect(() => {
     try {
       setCarNotesLoading(true)
 
-      const data = await getCarNotes()
+      const data =
+  await getCarNotes(
+    selectedCarId
+  )
 
       setCarNotes(data)
     } catch (error) {
@@ -456,20 +618,32 @@ useEffect(() => {
   }
 
   loadCarNotes()
-}, [session?.user?.id])
+}, [
+  session?.user?.id,
+  selectedCarId,
+])
 
 async function refreshPurchaseItems() {
-  const data = await getPurchaseItems()
+  const data =
+    await getPurchaseItems(
+      selectedCarId
+    )
   setPurchaseItems(data)
 }
 
 async function refreshCarNotes() {
-  const data = await getCarNotes()
+  const data =
+    await getCarNotes(
+      selectedCarId
+    )
   setCarNotes(data)
 }
 
 async function refreshCurrentWorks() {
-  const data = await getCurrentWorks()
+  const data =
+    await getCurrentWorks(
+      selectedCarId
+    )
   setCurrentWorks(data)
 }
 
@@ -506,21 +680,30 @@ const purchaseCounts = {
 }
 
 async function refreshMaintenanceTasks() {
-  const data = await getMaintenanceTasks()
+  const data =
+    await getMaintenanceTasks(
+      selectedCarId
+    )
   setMaintenanceTasks(data)
 
   return data
 }
 
 async function refreshInstalledParts() {
-  const data = await getInstalledParts()
+  const data =
+    await getInstalledParts(
+      selectedCarId
+    )
   setInstalledParts(data)
 
   return data
 }
 
 async function refreshExpenses() {
-  const data = await getAllExpenses()
+  const data =
+    await getAllExpenses(
+      selectedCarId
+    )
   setExpenses(data)
 }
 const [showForm, setShowForm] = useState(false)
@@ -537,11 +720,8 @@ const [editingExpenseId, setEditingExpenseId] = useState(null)
   amount: '',
 })
 
-const filteredExpenses = useMemo(() => {
-  return expenses.filter(
-    (expense) => expense.object === 'citroen'
-  )
-}, [expenses])
+const filteredExpenses =
+  expenses
 
   const totals = useMemo(() => {
     const now = new Date()
@@ -957,15 +1137,18 @@ function handleChange(event) {
   }))
 }
 
-  function getLastMileage() {
-  const lastExpenseWithMileage = expenses.find(
-    (expense) =>
-      expense.object === 'citroen' &&
-      expense.mileage !== null &&
-      expense.mileage !== undefined
-  )
+function getLastMileage() {
+  const lastExpenseWithMileage =
+    expenses.find(
+      (expense) =>
+        expense.mileage !== null &&
+        expense.mileage !== undefined
+    )
 
-  return lastExpenseWithMileage?.mileage ?? ''
+  return (
+    lastExpenseWithMileage?.mileage ??
+    ''
+  )
 }
 
 function getReplacementMileage(part) {
@@ -1660,7 +1843,12 @@ function handleCancelPartForm() {
 
 async function handlePartSubmit(event) {
   event.preventDefault()
-
+if (!selectedCarId) {
+  window.alert(
+    'Автомобиль не выбран.'
+  )
+  return
+}
   if (!partForm.name.trim()) {
     return
   }
@@ -1668,6 +1856,7 @@ async function handlePartSubmit(event) {
   try {
 const partId = await saveInstalledPart({
   id: editingPartId || undefined,
+    carId: selectedCarId,
   name: partForm.name.trim(),
   category: partForm.category,
   quantity: Number(partForm.quantity) || 1,
@@ -1813,7 +2002,12 @@ function handleCancelMaintenanceForm() {
 
 async function handleMaintenanceSubmit(event) {
   event.preventDefault()
-
+if (!selectedCarId) {
+  window.alert(
+    'Автомобиль не выбран.'
+  )
+  return
+}
   if (maintenanceSaving) {
     return
   }
@@ -1828,6 +2022,7 @@ async function handleMaintenanceSubmit(event) {
 
     await saveMaintenanceTask({
       id: editingMaintenanceId || undefined,
+      carId: selectedCarId,
       name: maintenanceForm.name.trim(),
 
       lastServiceDate:
@@ -1879,7 +2074,12 @@ nextServiceMileage:
 
 async function handleAddCurrentWork(event) {
   event.preventDefault()
-
+if (!selectedCarId) {
+  window.alert(
+    'Автомобиль не выбран.'
+  )
+  return
+}
   const text = currentWorkText.trim()
 
   if (!text) {
@@ -1889,7 +2089,8 @@ async function handleAddCurrentWork(event) {
   try {
 await addCurrentWork(
   text,
-  currentWorkPriority
+  currentWorkPriority,
+  selectedCarId
 )
     await refreshCurrentWorks()
 
@@ -1951,7 +2152,12 @@ async function handleDeleteCurrentWork(item) {
 }
 async function handleAddPurchaseItem(event) {
   event.preventDefault()
-
+if (!selectedCarId) {
+  window.alert(
+    'Автомобиль не выбран.'
+  )
+  return
+}
   const text = purchaseText.trim()
 
   if (!text) {
@@ -1959,10 +2165,11 @@ async function handleAddPurchaseItem(event) {
   }
 
   try {
-    await addPurchaseItem(
-      text,
-      purchasePriority
-    )
+await addPurchaseItem(
+  text,
+  purchasePriority,
+  selectedCarId
+)
 
     await refreshPurchaseItems()
 
@@ -2024,7 +2231,12 @@ async function handleDeletePurchaseItem(item) {
 
 async function handleSubmit(event) {
   event.preventDefault()
-
+if (!selectedCarId) {
+  window.alert(
+    'Автомобиль не выбран.'
+  )
+  return
+}
   const amount = Number(form.amount)
 
 const fuelVolume =
@@ -2047,9 +2259,9 @@ if (
   return
 }
 
-  const expenseData = {
-object: 'citroen',
-    date: form.date,
+const expenseData = {
+  carId: selectedCarId,
+  date: form.date,
     category: form.category,
     description: form.description.trim(),
     mileage:
@@ -2157,7 +2369,12 @@ function handleCancelNoteForm() {
 
 async function handleNoteSubmit(event) {
   event.preventDefault()
-
+if (!selectedCarId) {
+  window.alert(
+    'Автомобиль не выбран.'
+  )
+  return
+}
   if (
     !noteForm.title.trim() ||
     !noteForm.content.trim()
@@ -2170,7 +2387,7 @@ async function handleNoteSubmit(event) {
       id:
         editingNoteId ||
         undefined,
-
+carId: selectedCarId,
       title:
         noteForm.title,
 
@@ -2232,6 +2449,17 @@ if (authLoading) {
 if (!session) {
   return <AuthScreen />
 }
+
+if (carsLoading) {
+  return (
+    <main className="app">
+      <p>
+        Загрузка автомобилей...
+      </p>
+    </main>
+  )
+}
+
 if (expensesLoading) {
   return (
     <main className="app">
@@ -2245,46 +2473,77 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-<span className="app-version">v3.4.1</span>
+<span className="app-version">v3.5.0</span>
 </div>
 </div>
-<div className="header-section-control">
-  <select
-    value={citroenSection}
-    onChange={(event) =>
-      setCitroenSection(event.target.value)
-    }
-    aria-label="Раздел"
-  >
-    <option value="home">
-  Главная
-</option>
+<div className="header-selects">
+  <div className="header-section-control">
+    <select
+      value={selectedCarId}
+      onChange={(event) => {
+        setSelectedCarId(
+          event.target.value
+        )
+        setSelectedInstalledPart(
+          null
+        )
+      }}
+      disabled={
+        carsLoading ||
+        cars.length === 0
+      }
+      aria-label="Автомобиль"
+    >
+      {cars.map((car) => (
+        <option
+          key={car.id}
+          value={car.id}
+        >
+          {car.name}
+        </option>
+      ))}
+    </select>
+  </div>
 
-    <option value="expenses">
-      Расходы
-    </option>
+  <div className="header-section-control">
+    <select
+      value={citroenSection}
+      onChange={(event) =>
+        setCitroenSection(
+          event.target.value
+        )
+      }
+      aria-label="Раздел"
+    >
+      <option value="home">
+        Главная
+      </option>
 
-    <option value="parts">
-      Установленные детали
-    </option>
+      <option value="expenses">
+        Расходы
+      </option>
 
-    <option value="maintenance">
-      Регламентные работы
-    </option>
+      <option value="parts">
+        Установленные детали
+      </option>
 
-    <option value="current">
-      Текущие работы
-    </option>
+      <option value="maintenance">
+        Регламентные работы
+      </option>
 
-    <option value="buy">
-      Купить
-    </option>
+      <option value="current">
+        Текущие работы
+      </option>
 
-    <option value="notes">
-  Заметки
-</option>
+      <option value="buy">
+        Купить
+      </option>
 
-  </select>
+      <option value="notes">
+        Заметки
+      </option>
+    </select>
+  </div>
 </div>
 
 <div className="header-actions">
@@ -2337,7 +2596,11 @@ if (expensesLoading) {
 {citroenSection === 'home' && (
   <section className="home-dashboard">
     <div className="home-dashboard-header">
-      <h2>Главная</h2>
+      <h2>
+  {selectedCar
+    ? `${selectedCar.name} — Главная`
+    : 'Главная'}
+</h2>
 
       <div className="home-dashboard-mileage">
         Текущий пробег:{' '}

@@ -1,5 +1,48 @@
 import { supabase } from './lib/supabaseClient'
 
+export async function getCars() {
+  const { data, error } = await supabase
+    .from('cars')
+    .select('*')
+    .order('created_at', {
+      ascending: true,
+    })
+
+  if (error) {
+    console.error(
+      'Ошибка загрузки автомобилей:',
+      error
+    )
+    throw error
+  }
+
+  return (data || []).map((car) => ({
+    id: car.id,
+    name: car.name,
+    slug: car.slug,
+  }))
+}
+
+function requireCarId(carId) {
+  if (!carId) {
+    throw new Error(
+      'Автомобиль не выбран.'
+    )
+  }
+
+  return carId
+}
+
+function applyCarFilter(
+  query,
+  carId
+) {
+  return query.eq(
+    'car_id',
+    requireCarId(carId)
+  )
+}
+
 const INSTALLED_PART_PHOTO_BUCKET = 'installed-part-photos'
 const MAX_INSTALLED_PART_PHOTOS = 5
 const PHOTO_URL_TTL_SECONDS = 60 * 60 * 24
@@ -134,12 +177,25 @@ export async function getInstalledPartPhotoUrl(filePath) {
   return url
 }
 
-export async function getAllExpenses() {
-  const { data, error } = await supabase
-    .from('expenses')
-    .select('*')
-    .order('expense_date', { ascending: false })
-    .order('created_at', { ascending: false })
+export async function getAllExpenses(
+  carId = null
+) {
+
+const query = supabase
+  .from('expenses')
+  .select('*')
+  .order('expense_date', {
+    ascending: false,
+  })
+  .order('created_at', {
+    ascending: false,
+  })
+
+const { data, error } =
+  await applyCarFilter(
+    query,
+    carId
+  )
 
   if (error) {
     console.error('Ошибка загрузки расходов:', error)
@@ -148,7 +204,6 @@ export async function getAllExpenses() {
 
   return (data || []).map((expense) => ({
     id: expense.id,
-    object: expense.object,
     date: expense.expense_date,
     category: expense.category,
     description: expense.description,
@@ -165,7 +220,10 @@ amount: Number(expense.amount),
 
 export async function saveExpense(expense) {
   const expenseData = {
-    object: expense.object,
+      car_id: requireCarId(
+    expense.carId
+  ),
+
     expense_date: expense.date,
     category: expense.category,
     description: expense.description,
@@ -227,20 +285,32 @@ export async function deleteExpense(expenseId) {
   }
 }
 
-export async function getInstalledParts() {
-  const { data, error } = await supabase
-    .from('installed_parts')
-    .select(`
-      *,
-      installed_part_photos (
-        id,
-        file_path,
-        sort_order,
-        created_at
-      )
-    `)
-    .order('installed_date', { ascending: false })
-    .order('created_at', { ascending: false })
+export async function getInstalledParts(
+  carId = null
+) {
+const query = supabase
+  .from('installed_parts')
+  .select(`
+    *,
+    installed_part_photos (
+      id,
+      file_path,
+      sort_order,
+      created_at
+    )
+  `)
+  .order('installed_date', {
+    ascending: false,
+  })
+  .order('created_at', {
+    ascending: false,
+  })
+
+const { data, error } =
+  await applyCarFilter(
+    query,
+    carId
+  )
 
   if (error) {
     console.error(
@@ -293,6 +363,9 @@ export async function getInstalledParts() {
 
 export async function saveInstalledPart(part) {
   const partData = {
+car_id: requireCarId(
+  part.carId
+),
     part_name: part.name,
     category: part.category || null,
     quantity: Number(part.quantity) || 1,
@@ -613,11 +686,21 @@ if (storedCache[photo.path]) {
 }
   }
 
-export async function getMaintenanceTasks() {
-  const { data, error } = await supabase
-    .from('maintenance_tasks')
-    .select('*')
-    .order('created_at', { ascending: true })
+export async function getMaintenanceTasks(
+  carId = null
+) {
+const query = supabase
+  .from('maintenance_tasks')
+  .select('*')
+  .order('created_at', {
+    ascending: true,
+  })
+
+const { data, error } =
+  await applyCarFilter(
+    query,
+    carId
+  )
 
   if (error) {
     console.error(
@@ -642,6 +725,9 @@ export async function getMaintenanceTasks() {
 
 export async function saveMaintenanceTask(task) {
   const taskData = {
+car_id: requireCarId(
+  task.carId
+),
     name: task.name,
     last_service_date:
       task.lastServiceDate || null,
@@ -669,7 +755,7 @@ next_service_mileage:
   task.intervalMonths == null
     ? null
     : Number(task.intervalMonths),
-    
+
     installed_part_id:
       task.installedPartId || null,
 
@@ -726,11 +812,21 @@ export async function deleteMaintenanceTask(taskId) {
     throw error
   }
 }
-export async function getCurrentWorks() {
-  const { data, error } = await supabase
-    .from('current_works')
-    .select('*')
-    .order('created_at', { ascending: true })
+export async function getCurrentWorks(
+  carId = null
+) {
+const query = supabase
+  .from('current_works')
+  .select('*')
+  .order('created_at', {
+    ascending: true,
+  })
+
+const { data, error } =
+  await applyCarFilter(
+    query,
+    carId
+  )
 
   if (error) {
     console.error(
@@ -749,13 +845,19 @@ return (data || []).map((item) => ({
 
 export async function addCurrentWork(
   text,
-  priority = 'medium'
-) {
+  priority = 'medium',
+  carId
+)
+ {
   const { data, error } = await supabase
     .from('current_works')
     .insert({
+      
       text: text.trim(),
         priority: priority,
+        car_id: requireCarId(
+  carId
+),
     })
     .select()
     .single()
@@ -806,11 +908,21 @@ export async function updateCurrentWorkPriority(
   }
 }
 
-export async function getPurchaseItems() {
-  const { data, error } = await supabase
-    .from('purchase_items')
-    .select('*')
-    .order('created_at', { ascending: true })
+export async function getPurchaseItems(
+  carId = null
+) {
+  const query = supabase
+  .from('purchase_items')
+  .select('*')
+  .order('created_at', {
+    ascending: true,
+  })
+
+const { data, error } =
+  await applyCarFilter(
+    query,
+    carId
+  )
 
   if (error) {
     console.error(
@@ -829,13 +941,18 @@ export async function getPurchaseItems() {
 
 export async function addPurchaseItem(
   text,
-  priority = 'medium'
+  priority = 'medium',
+carId
 ) {
+
   const { data, error } = await supabase
     .from('purchase_items')
     .insert({
       text: text.trim(),
       priority,
+car_id: requireCarId(
+  carId
+),
     })
     .select()
     .single()
@@ -886,13 +1003,21 @@ export async function deletePurchaseItem(id) {
   }
 }
 
-export async function getCarNotes() {
-  const { data, error } = await supabase
+export async function getCarNotes(
+  carId = null
+) {
+  const query = supabase
     .from('car_notes')
     .select('*')
     .order('updated_at', {
       ascending: false,
     })
+
+  const { data, error } =
+    await applyCarFilter(
+      query,
+      carId
+    )
 
   if (error) {
     console.error(
@@ -913,6 +1038,9 @@ export async function getCarNotes() {
 
 export async function saveCarNote(note) {
   const noteData = {
+car_id: requireCarId(
+  note.carId
+),
     title: note.title.trim(),
     content: note.content.trim(),
     updated_at: new Date().toISOString(),
