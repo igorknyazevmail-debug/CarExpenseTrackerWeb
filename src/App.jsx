@@ -2245,7 +2245,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-<span className="app-version">v3.4.0</span>
+<span className="app-version">v3.4.1</span>
 </div>
 </div>
 <div className="header-section-control">
