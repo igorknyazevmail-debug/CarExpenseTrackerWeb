@@ -2354,16 +2354,16 @@ if (expensesLoading) {
     </div>
 
     <div className="home-dashboard-grid">
-      <section className="home-dashboard-card">
-        <div className="home-dashboard-card-header">
-          <h3>Детали к замене</h3>
+      {dashboardInstalledParts.length > 0 && (
+        <section className="home-dashboard-card">
+          <div className="home-dashboard-card-header">
+            <h3>Детали к замене</h3>
 
-          <span className="home-dashboard-count">
-            {dashboardInstalledParts.length}
-          </span>
-        </div>
+            <span className="home-dashboard-count">
+              {dashboardInstalledParts.length}
+            </span>
+          </div>
 
-        {dashboardInstalledParts.length > 0 ? (
           <div className="home-dashboard-list">
             {dashboardInstalledParts.map(
               (part) => {
@@ -2381,6 +2381,7 @@ if (expensesLoading) {
                       setSelectedInstalledPart(
                         part
                       )
+
                       setCitroenSection(
                         'parts'
                       )
@@ -2413,29 +2414,23 @@ if (expensesLoading) {
               }
             )}
           </div>
-        ) : (
-          <p className="home-dashboard-empty">
-            Нет деталей, требующих
-            скорой замены.
-          </p>
-        )}
-      </section>
+        </section>
+      )}
 
-      <section className="home-dashboard-card">
-        <div className="home-dashboard-card-header">
-          <h3>
-            Регламентные работы
-          </h3>
+      {dashboardMaintenanceTasks.length > 0 && (
+        <section className="home-dashboard-card">
+          <div className="home-dashboard-card-header">
+            <h3>
+              Регламентные работы
+            </h3>
 
-          <span className="home-dashboard-count">
-            {
-              dashboardMaintenanceTasks.length
-            }
-          </span>
-        </div>
+            <span className="home-dashboard-count">
+              {
+                dashboardMaintenanceTasks.length
+              }
+            </span>
+          </div>
 
-        {dashboardMaintenanceTasks.length >
-        0 ? (
           <div className="home-dashboard-list">
             {dashboardMaintenanceTasks.map(
               (task) => {
@@ -2509,27 +2504,21 @@ if (expensesLoading) {
               }
             )}
           </div>
-        ) : (
-          <p className="home-dashboard-empty">
-            Ближайших регламентных
-            работ нет.
-          </p>
-        )}
-      </section>
+        </section>
+      )}
 
-      <section className="home-dashboard-card">
-        <div className="home-dashboard-card-header">
-          <h3>
-            Текущие работы
-          </h3>
+      {dashboardCurrentWorks.length > 0 && (
+        <section className="home-dashboard-card">
+          <div className="home-dashboard-card-header">
+            <h3>
+              Текущие работы
+            </h3>
 
-          <span className="home-dashboard-count">
-            {dashboardCurrentWorks.length}
-          </span>
-        </div>
+            <span className="home-dashboard-count">
+              {dashboardCurrentWorks.length}
+            </span>
+          </div>
 
-        {dashboardCurrentWorks.length >
-        0 ? (
           <div className="home-dashboard-list">
             {dashboardCurrentWorks.map(
               (item) => (
@@ -2554,25 +2543,19 @@ if (expensesLoading) {
               )
             )}
           </div>
-        ) : (
-          <p className="home-dashboard-empty">
-            Нет работ с высоким
-            приоритетом.
-          </p>
-        )}
-      </section>
+        </section>
+      )}
 
-      <section className="home-dashboard-card">
-        <div className="home-dashboard-card-header">
-          <h3>Купить</h3>
+      {dashboardPurchaseItems.length > 0 && (
+        <section className="home-dashboard-card">
+          <div className="home-dashboard-card-header">
+            <h3>Купить</h3>
 
-          <span className="home-dashboard-count">
-            {dashboardPurchaseItems.length}
-          </span>
-        </div>
+            <span className="home-dashboard-count">
+              {dashboardPurchaseItems.length}
+            </span>
+          </div>
 
-        {dashboardPurchaseItems.length >
-        0 ? (
           <div className="home-dashboard-list">
             {dashboardPurchaseItems.map(
               (item) => (
@@ -2597,13 +2580,8 @@ if (expensesLoading) {
               )
             )}
           </div>
-        ) : (
-          <p className="home-dashboard-empty">
-            Нет покупок с высоким
-            приоритетом.
-          </p>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   </section>
 )}
