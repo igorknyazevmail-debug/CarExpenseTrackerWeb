@@ -385,8 +385,14 @@ const [editingPartId, setEditingPartId] = useState(null)
 const [newPartPhotos, setNewPartPhotos] = useState([])
 const [selectedInstalledPart, setSelectedInstalledPart] = useState(null)
 const [openedPartPhoto, setOpenedPartPhoto] = useState(null)
-const [replacementSortOrder, setReplacementSortOrder] =
-  useState('asc')
+const [
+  installedPartSort,
+  setInstalledPartSort,
+] = useState({
+  key: 'replacement',
+  order: 'asc',
+})
+
   const [
   installedPartCategory,
   setInstalledPartCategory,
@@ -1166,6 +1172,174 @@ function getReplacementMileage(part) {
   return installationMileage + serviceLifeKm
 }
 
+function getPartWearMileage(part) {
+  const currentMileage =
+    Number(getLastMileage())
+
+  const installationMileage =
+    Number(part.mileage)
+
+  if (
+    !Number.isFinite(currentMileage) ||
+    !Number.isFinite(installationMileage) ||
+    currentMileage <= 0 ||
+    installationMileage <= 0
+  ) {
+    return null
+  }
+
+  if (
+    currentMileage <
+    installationMileage
+  ) {
+    return null
+  }
+
+  return (
+    currentMileage -
+    installationMileage
+  )
+}
+
+function getPartRemainingMileage(part) {
+  const replacementMileage =
+    getReplacementMileage(part)
+
+  const currentMileage =
+    Number(getLastMileage())
+
+  if (
+    replacementMileage == null ||
+    !Number.isFinite(currentMileage) ||
+    currentMileage <= 0
+  ) {
+    return null
+  }
+
+  return (
+    replacementMileage -
+    currentMileage
+  )
+}
+
+function handleInstalledPartSort(key) {
+  setInstalledPartSort((current) => {
+    if (current.key === key) {
+      return {
+        key,
+        order:
+          current.order === 'asc'
+            ? 'desc'
+            : 'asc',
+      }
+    }
+
+    return {
+      key,
+      order: 'asc',
+    }
+  })
+}
+
+function getInstalledPartSortArrow(key) {
+  if (installedPartSort.key !== key) {
+    return ''
+  }
+
+  return installedPartSort.order === 'asc'
+    ? '↑'
+    : '↓'
+}
+
+function getInstalledPartSortValue(
+  part,
+  key
+) {
+  switch (key) {
+    case 'date':
+      return part.installedDate || ''
+
+    case 'name':
+      return part.name || ''
+
+    case 'installed':
+      return Number(part.mileage) || null
+
+    case 'wear':
+      return getPartWearMileage(part)
+
+    case 'resource':
+      return Number(
+        part.serviceLifeKm
+      ) || null
+
+    case 'replacement':
+      return getReplacementMileage(part)
+
+    case 'remaining':
+      return getPartRemainingMileage(part)
+
+    default:
+      return null
+  }
+}
+
+function compareInstalledParts(a, b) {
+  const valueA =
+    getInstalledPartSortValue(
+      a,
+      installedPartSort.key
+    )
+
+  const valueB =
+    getInstalledPartSortValue(
+      b,
+      installedPartSort.key
+    )
+
+  // Пустые значения всегда внизу
+  if (
+    valueA == null &&
+    valueB == null
+  ) {
+    return 0
+  }
+
+  if (valueA == null) {
+    return 1
+  }
+
+  if (valueB == null) {
+    return -1
+  }
+
+  let result = 0
+
+  if (
+    installedPartSort.key ===
+      'name' ||
+    installedPartSort.key ===
+      'date'
+  ) {
+    result = String(valueA).localeCompare(
+      String(valueB),
+      'ru',
+      {
+        sensitivity: 'base',
+      }
+    )
+  } else {
+    result =
+      Number(valueA) -
+      Number(valueB)
+  }
+
+  return installedPartSort.order ===
+    'asc'
+    ? result
+    : -result
+}
+
 function isReplacementOverdue(part) {
   const replacementMileage = getReplacementMileage(part)
   const currentMileage = Number(getLastMileage())
@@ -1626,39 +1800,13 @@ const sortedInstalledParts = useMemo(() => {
         matchesSearch
       )
     })
-    .sort((a, b) => {
-      const replacementA =
-        getReplacementMileage(a)
-
-      const replacementB =
-        getReplacementMileage(b)
-
-      if (
-        replacementA === null &&
-        replacementB === null
-      ) {
-        return 0
-      }
-
-      if (replacementA === null) {
-        return 1
-      }
-
-      if (replacementB === null) {
-        return -1
-      }
-
-      if (replacementSortOrder === 'asc') {
-        return replacementA - replacementB
-      }
-
-      return replacementB - replacementA
-    })
+    .sort(compareInstalledParts)
 }, [
   installedParts,
-  replacementSortOrder,
+  installedPartSort,
   installedPartCategory,
   installedPartSearch,
+  expenses,
 ])
 
 function resetForm() {
@@ -2473,7 +2621,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-<span className="app-version">v3.5.0</span>
+<span className="app-version">v3.6.0</span>
 </div>
 </div>
 <div className="header-selects">
@@ -3272,35 +3420,139 @@ if (expensesLoading) {
             <table>
               <thead>
                 <tr>
-                  <th>Дата</th>
-                  <th>Деталь</th>
-  
-                  <th>Установлено</th>
-                  <th>Ресурс</th>
+  <th>
+    <button
+      type="button"
+      className="table-sort-button"
+      onClick={() =>
+        handleInstalledPartSort(
+          'date'
+        )
+      }
+    >
+      Дата
+      <span className="sort-arrow">
+        {getInstalledPartSortArrow(
+          'date'
+        )}
+      </span>
+    </button>
+  </th>
 
-                  <th>
-                    <button
-                      type="button"
-                      className="table-sort-button"
-                      onClick={() =>
-                        setReplacementSortOrder(
-                          (current) =>
-                            current === 'asc'
-                              ? 'desc'
-                              : 'asc'
-                        )
-                      }
-                    >
-                      Замена{' '}
-                      {replacementSortOrder ===
-                      'asc'
-                        ? '↑'
-                        : '↓'}
-                    </button>
-                  </th>
+  <th>
+    <button
+      type="button"
+      className="table-sort-button"
+      onClick={() =>
+        handleInstalledPartSort(
+          'name'
+        )
+      }
+    >
+      Деталь
+      <span className="sort-arrow">
+        {getInstalledPartSortArrow(
+          'name'
+        )}
+      </span>
+    </button>
+  </th>
 
-                  <th>Осталось</th>
-                </tr>
+  <th>
+    <button
+      type="button"
+      className="table-sort-button"
+      onClick={() =>
+        handleInstalledPartSort(
+          'installed'
+        )
+      }
+    >
+      Установлено
+      <span className="sort-arrow">
+        {getInstalledPartSortArrow(
+          'installed'
+        )}
+      </span>
+    </button>
+  </th>
+
+  <th>
+    <button
+      type="button"
+      className="table-sort-button"
+      onClick={() =>
+        handleInstalledPartSort(
+          'wear'
+        )
+      }
+    >
+      Износ
+      <span className="sort-arrow">
+        {getInstalledPartSortArrow(
+          'wear'
+        )}
+      </span>
+    </button>
+  </th>
+
+  <th>
+    <button
+      type="button"
+      className="table-sort-button"
+      onClick={() =>
+        handleInstalledPartSort(
+          'resource'
+        )
+      }
+    >
+      Ресурс
+      <span className="sort-arrow">
+        {getInstalledPartSortArrow(
+          'resource'
+        )}
+      </span>
+    </button>
+  </th>
+
+  <th>
+    <button
+      type="button"
+      className="table-sort-button"
+      onClick={() =>
+        handleInstalledPartSort(
+          'replacement'
+        )
+      }
+    >
+      Замена
+      <span className="sort-arrow">
+        {getInstalledPartSortArrow(
+          'replacement'
+        )}
+      </span>
+    </button>
+  </th>
+
+  <th>
+    <button
+      type="button"
+      className="table-sort-button"
+      onClick={() =>
+        handleInstalledPartSort(
+          'remaining'
+        )
+      }
+    >
+      Осталось
+      <span className="sort-arrow">
+        {getInstalledPartSortArrow(
+          'remaining'
+        )}
+      </span>
+    </button>
+  </th>
+</tr>
               </thead>
 
               <tbody>
@@ -3346,6 +3598,16 @@ if (expensesLoading) {
                             : '—'}
                         </td>
 
+<td>
+  {getPartWearMileage(part) !== null
+    ? `${getPartWearMileage(
+        part
+      ).toLocaleString(
+        'lt-LT'
+      )} км`
+    : '—'}
+</td>
+
                         <td>
                           {part.serviceLifeKm
                             ? `${Number(
@@ -3381,7 +3643,7 @@ if (expensesLoading) {
                 {sortedInstalledParts.length ===
                   0 && (
                   <tr>
-                    <td colSpan="6">
+                    <td colSpan="7">
                       {installedParts.length === 0
                         ? 'Установленных деталей пока нет.'
                         : 'Подходящих деталей не найдено.'}
@@ -3605,6 +3867,19 @@ if (expensesLoading) {
                 )} км`
               : '—'}
           </p>
+<p>
+  <strong>Износ:</strong>{' '}
+
+  {getPartWearMileage(
+    selectedInstalledPart
+  ) !== null
+    ? `${getPartWearMileage(
+        selectedInstalledPart
+      ).toLocaleString(
+        'lt-LT'
+      )} км`
+    : '—'}
+</p>
 
           <p>
             <strong>Ресурс:</strong>{' '}
