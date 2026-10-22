@@ -267,7 +267,7 @@ const [maintenanceForm, setMaintenanceForm] = useState({
   note: '',
 })
 
-const [citroenSection, setCitroenSection] = useState('expenses')
+const [citroenSection, setCitroenSection] = useState('home')
 
 const [showPartForm, setShowPartForm] = useState(false)
 const [editingPartId, setEditingPartId] = useState(null)
@@ -872,6 +872,67 @@ const sortedMaintenanceTasks = useMemo(() => {
   installedParts,
   expenses,
 ])
+
+const dashboardInstalledParts =
+  installedParts
+    .filter((part) => {
+      const status =
+        getRemainingMileageStatus(part)
+
+      return (
+        status === 'soon' ||
+        status === 'overdue'
+      )
+    })
+    .sort((a, b) => {
+      const remainingA =
+        getRemainingMileage(a)
+
+      const remainingB =
+        getRemainingMileage(b)
+
+      if (
+        remainingA == null &&
+        remainingB == null
+      ) {
+        return 0
+      }
+
+      if (remainingA == null) {
+        return 1
+      }
+
+      if (remainingB == null) {
+        return -1
+      }
+
+      return remainingA - remainingB
+    })
+
+const dashboardMaintenanceTasks =
+  sortedMaintenanceTasks.filter(
+    (task) => {
+      const status =
+        getMaintenanceStatus(task)
+
+      return (
+        status === 'soon' ||
+        status === 'overdue'
+      )
+    }
+  )
+
+const dashboardCurrentWorks =
+  currentWorks.filter(
+    (item) =>
+      item.priority === 'high'
+  )
+
+const dashboardPurchaseItems =
+  purchaseItems.filter(
+    (item) =>
+      item.priority === 'high'
+  )
 
 function handleChange(event) {
   const {
@@ -2184,7 +2245,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-<span className="app-version">v3.3.1</span>
+<span className="app-version">v3.4.0</span>
 </div>
 </div>
 <div className="header-section-control">
@@ -2195,6 +2256,10 @@ if (expensesLoading) {
     }
     aria-label="Раздел"
   >
+    <option value="home">
+  Главная
+</option>
+
     <option value="expenses">
       Расходы
     </option>
@@ -2268,6 +2333,280 @@ if (expensesLoading) {
 </div>
 
       </header>
+
+{citroenSection === 'home' && (
+  <section className="home-dashboard">
+    <div className="home-dashboard-header">
+      <h2>Главная</h2>
+
+      <div className="home-dashboard-mileage">
+        Текущий пробег:{' '}
+        <strong>
+          {getLastMileage()
+            ? `${Number(
+                getLastMileage()
+              ).toLocaleString(
+                'lt-LT'
+              )} км`
+            : '—'}
+        </strong>
+      </div>
+    </div>
+
+    <div className="home-dashboard-grid">
+      <section className="home-dashboard-card">
+        <div className="home-dashboard-card-header">
+          <h3>Детали к замене</h3>
+
+          <span className="home-dashboard-count">
+            {dashboardInstalledParts.length}
+          </span>
+        </div>
+
+        {dashboardInstalledParts.length > 0 ? (
+          <div className="home-dashboard-list">
+            {dashboardInstalledParts.map(
+              (part) => {
+                const status =
+                  getRemainingMileageStatus(
+                    part
+                  )
+
+                return (
+                  <button
+                    key={part.id}
+                    type="button"
+                    className="home-dashboard-item"
+                    onClick={() => {
+                      setSelectedInstalledPart(
+                        part
+                      )
+                      setCitroenSection(
+                        'parts'
+                      )
+                    }}
+                  >
+                    <div className="home-dashboard-item-main">
+                      <strong>
+                        {part.name}
+                      </strong>
+
+                      <span
+                        className={`home-dashboard-status ${status}`}
+                      >
+                        {status ===
+                        'overdue'
+                          ? 'Просрочено'
+                          : 'Скоро'}
+                      </span>
+                    </div>
+
+                    <div
+                      className={`home-dashboard-item-info ${status}`}
+                    >
+                      {formatRemainingMileage(
+                        part
+                      )}
+                    </div>
+                  </button>
+                )
+              }
+            )}
+          </div>
+        ) : (
+          <p className="home-dashboard-empty">
+            Нет деталей, требующих
+            скорой замены.
+          </p>
+        )}
+      </section>
+
+      <section className="home-dashboard-card">
+        <div className="home-dashboard-card-header">
+          <h3>
+            Регламентные работы
+          </h3>
+
+          <span className="home-dashboard-count">
+            {
+              dashboardMaintenanceTasks.length
+            }
+          </span>
+        </div>
+
+        {dashboardMaintenanceTasks.length >
+        0 ? (
+          <div className="home-dashboard-list">
+            {dashboardMaintenanceTasks.map(
+              (task) => {
+                const status =
+                  getMaintenanceStatus(
+                    task
+                  )
+
+                const nextMileage =
+                  getMaintenanceNextMileage(
+                    task
+                  )
+
+                const nextDate =
+                  getMaintenanceNextDate(
+                    task
+                  )
+
+                return (
+                  <button
+                    key={task.id}
+                    type="button"
+                    className="home-dashboard-item"
+                    onClick={() =>
+                      setCitroenSection(
+                        'maintenance'
+                      )
+                    }
+                  >
+                    <div className="home-dashboard-item-main">
+                      <strong>
+                        {task.name}
+                      </strong>
+
+                      <span
+                        className={`home-dashboard-status ${status}`}
+                      >
+                        {getMaintenanceStatusLabel(
+                          task
+                        )}
+                      </span>
+                    </div>
+
+                    {nextMileage && (
+                      <div
+                        className={`home-dashboard-item-info ${status}`}
+                      >
+                        {formatMaintenanceMileageRemaining(
+                          task
+                        )}
+                      </div>
+                    )}
+
+                    {nextDate && (
+                      <div
+                        className={`home-dashboard-item-info ${getMaintenanceDateStatus(
+                          task
+                        )}`}
+                      >
+                        {formatDate(
+                          nextDate
+                        )}
+                        {' — '}
+                        {formatMaintenanceDateRemaining(
+                          task
+                        )}
+                      </div>
+                    )}
+                  </button>
+                )
+              }
+            )}
+          </div>
+        ) : (
+          <p className="home-dashboard-empty">
+            Ближайших регламентных
+            работ нет.
+          </p>
+        )}
+      </section>
+
+      <section className="home-dashboard-card">
+        <div className="home-dashboard-card-header">
+          <h3>
+            Текущие работы
+          </h3>
+
+          <span className="home-dashboard-count">
+            {dashboardCurrentWorks.length}
+          </span>
+        </div>
+
+        {dashboardCurrentWorks.length >
+        0 ? (
+          <div className="home-dashboard-list">
+            {dashboardCurrentWorks.map(
+              (item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="home-dashboard-item"
+                  onClick={() =>
+                    setCitroenSection(
+                      'current'
+                    )
+                  }
+                >
+                  <div className="home-dashboard-priority-item">
+                    <span className="current-work-priority-dot high" />
+
+                    <strong>
+                      {item.text}
+                    </strong>
+                  </div>
+                </button>
+              )
+            )}
+          </div>
+        ) : (
+          <p className="home-dashboard-empty">
+            Нет работ с высоким
+            приоритетом.
+          </p>
+        )}
+      </section>
+
+      <section className="home-dashboard-card">
+        <div className="home-dashboard-card-header">
+          <h3>Купить</h3>
+
+          <span className="home-dashboard-count">
+            {dashboardPurchaseItems.length}
+          </span>
+        </div>
+
+        {dashboardPurchaseItems.length >
+        0 ? (
+          <div className="home-dashboard-list">
+            {dashboardPurchaseItems.map(
+              (item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className="home-dashboard-item"
+                  onClick={() =>
+                    setCitroenSection(
+                      'buy'
+                    )
+                  }
+                >
+                  <div className="home-dashboard-priority-item">
+                    <span className="current-work-priority-dot high" />
+
+                    <strong>
+                      {item.text}
+                    </strong>
+                  </div>
+                </button>
+              )
+            )}
+          </div>
+        ) : (
+          <p className="home-dashboard-empty">
+            Нет покупок с высоким
+            приоритетом.
+          </p>
+        )}
+      </section>
+    </div>
+  </section>
+)}
 
       {showForm && (
         <section className="expense-form-section">

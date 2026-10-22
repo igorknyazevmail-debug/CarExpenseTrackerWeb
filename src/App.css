@@ -1367,3 +1367,175 @@ white-space: nowrap;
   background: #fee2e2;
   color: #dc2626;
 }
+
+/* ===== Главная ===== */
+
+.home-dashboard {
+  width: 100%;
+}
+
+.home-dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.home-dashboard-header h2 {
+  margin: 0;
+}
+
+.home-dashboard-mileage {
+  color: #64748b;
+  font-size: 14px;
+}
+
+.home-dashboard-mileage strong {
+  color: #0f172a;
+}
+
+.home-dashboard-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.home-dashboard-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: white;
+}
+
+.home-dashboard-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 18px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.home-dashboard-card-header h3 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.home-dashboard-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 27px;
+  height: 27px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 700;
+  box-sizing: border-box;
+}
+
+.home-dashboard-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-dashboard-item {
+  width: 100%;
+  padding: 14px 18px;
+  border: 0;
+  border-bottom: 1px solid #e2e8f0;
+  background: white;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.home-dashboard-item:last-child {
+  border-bottom: 0;
+}
+
+.home-dashboard-item:hover {
+  background: #f8fafc;
+}
+
+.home-dashboard-item-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.home-dashboard-item-main strong {
+  color: #0f172a;
+  line-height: 1.35;
+}
+
+.home-dashboard-status {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.home-dashboard-status.soon {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.home-dashboard-status.overdue {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.home-dashboard-item-info {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.home-dashboard-item-info.normal {
+  color: #166534;
+}
+
+.home-dashboard-item-info.soon {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.home-dashboard-item-info.overdue {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.home-dashboard-priority-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.home-dashboard-empty {
+  margin: 0;
+  padding: 20px 18px;
+  color: #64748b;
+  font-size: 14px;
+}
+
+@media (max-width: 800px) {
+  .home-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-dashboard-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
