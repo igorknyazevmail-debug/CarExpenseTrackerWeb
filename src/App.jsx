@@ -364,6 +364,11 @@ const [maintenanceSortOrder, setMaintenanceSortOrder] =
 const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
 const [editingMaintenanceId, setEditingMaintenanceId] = useState(null)
 
+const [
+  expandedMaintenanceId,
+  setExpandedMaintenanceId,
+] = useState(null)
+
 const [maintenanceSaving, setMaintenanceSaving] =
   useState(false)
 
@@ -2621,7 +2626,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-<span className="app-version">v3.6.0</span>
+<span className="app-version">v3.7.0</span>
 </div>
 </div>
 <div className="header-selects">
@@ -4094,221 +4099,291 @@ if (expensesLoading) {
       </form>
     </section>
   )}
+
 {citroenSection === 'maintenance' && (
-    <section className="expenses-section">
-      <div className="section-header">
-        <h2>Регламентные работы</h2>
-      </div>
+  <section className="expenses-section">
+    <div className="section-header">
+      <h2>Регламентные работы</h2>
+    </div>
 
-      {maintenanceLoading ? (
-        <p style={{ padding: '20px' }}>
-          Загрузка регламентных работ...
-        </p>
-      ) : (
-        <div className="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Работа</th>
-                <th>Привязанная деталь</th>
-                <th>Последнее выполнение</th>
-                <th>Интервал</th>
-                <th>
-  <button
-    type="button"
-    className="table-sort-button"
-    onClick={() =>
-      setMaintenanceSortOrder((current) =>
-        current === 'asc' ? 'desc' : 'asc'
-      )
-    }
-  >
-    Следующая замена
-    <span className="sort-arrow">
-      {maintenanceSortOrder === 'asc' ? '↑' : '↓'}
-    </span>
-  </button>
-</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
+    {maintenanceLoading ? (
+      <p style={{ padding: '20px' }}>
+        Загрузка регламентных работ...
+      </p>
+    ) : (
+      <div className="maintenance-card-list">
+        {sortedMaintenanceTasks.map(
+          (task) => {
+            const interval =
+              getMaintenanceInterval(task)
 
-            <tbody>
-              {sortedMaintenanceTasks.map((task) => {
-                const interval =
-                  getMaintenanceInterval(task)
+            const nextMileage =
+              getMaintenanceNextMileage(task)
 
-                const nextMileage =
-                  getMaintenanceNextMileage(task)
+            const nextDate =
+              getMaintenanceNextDate(task)
 
-                  const nextDate =
-  getMaintenanceNextDate(task)
+            const linkedPart =
+              getMaintenanceLinkedPart(task)
 
-                  const linkedPart =
-                  getMaintenanceLinkedPart(task)
+            const status =
+              getMaintenanceStatus(task)
 
-                return (
-                  <tr key={task.id}>
-                    <td>
-  <div className="maintenance-task-name">
-    <span>{task.name}</span>
+            const statusLabel =
+              getMaintenanceStatusLabel(task)
 
-    {getMaintenanceStatusLabel(task) && (
-      <span
-        className={`maintenance-status-badge ${getMaintenanceStatus(
-          task
-        )}`}
-      >
-        {getMaintenanceStatusLabel(
-          task
+            const isExpanded =
+              expandedMaintenanceId ===
+              task.id
+
+            return (
+              <article
+                key={task.id}
+                className={`maintenance-card ${status}`}
+              >
+                <button
+                  type="button"
+                  className="maintenance-card-summary"
+                  onClick={() =>
+                    setExpandedMaintenanceId(
+                      isExpanded
+                        ? null
+                        : task.id
+                    )
+                  }
+                >
+                  <div className="maintenance-card-title">
+                    <strong>
+                      {task.name}
+                    </strong>
+
+                    {statusLabel && (
+                      <span
+                        className={`maintenance-status-badge ${status}`}
+                      >
+                        {statusLabel}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="maintenance-card-next">
+                    {nextMileage && (
+                      <span>
+                        {nextMileage.toLocaleString(
+                          'lt-LT'
+                        )}{' '}
+                        км
+                      </span>
+                    )}
+
+                    {nextDate && (
+                      <span>
+                        {formatDate(
+                          nextDate
+                        )}
+                      </span>
+                    )}
+
+                    {!nextMileage &&
+                      !nextDate && (
+                        <span>—</span>
+                      )}
+                  </div>
+
+                  <span
+                    className={`maintenance-card-arrow ${
+                      isExpanded
+                        ? 'expanded'
+                        : ''
+                    }`}
+                  >
+                    ▾
+                  </span>
+                </button>
+
+                {isExpanded && (
+                  <div className="maintenance-card-details">
+                    <div className="maintenance-detail-grid">
+                      <div>
+                        <span className="maintenance-detail-label">
+                          Привязанная деталь
+                        </span>
+
+                        <strong>
+                          {linkedPart
+                            ? `${linkedPart.name}${
+                                linkedPart.manufacturer
+                                  ? ` — ${linkedPart.manufacturer}`
+                                  : ''
+                              }`
+                            : '—'}
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span className="maintenance-detail-label">
+                          Последнее выполнение
+                        </span>
+
+                        <strong>
+                          {task.lastServiceDate
+                            ? formatDate(
+                                task.lastServiceDate
+                              )
+                            : '—'}
+                        </strong>
+
+                        {task.lastServiceMileage !=
+                          null && (
+                          <span>
+                            {Number(
+                              task.lastServiceMileage
+                            ).toLocaleString(
+                              'lt-LT'
+                            )}{' '}
+                            км
+                          </span>
+                        )}
+                      </div>
+
+                      <div>
+                        <span className="maintenance-detail-label">
+                          Интервал
+                        </span>
+
+                        {interval && (
+                          <strong>
+                            {interval.toLocaleString(
+                              'lt-LT'
+                            )}{' '}
+                            км
+                          </strong>
+                        )}
+
+                        {task.intervalMonths && (
+                          <span>
+                            {Number(
+                              task.intervalMonths
+                            ).toLocaleString(
+                              'lt-LT'
+                            )}{' '}
+                            мес.
+                          </span>
+                        )}
+
+                        {!interval &&
+                          !task.intervalMonths && (
+                            <strong>—</strong>
+                          )}
+                      </div>
+
+                      <div>
+                        <span className="maintenance-detail-label">
+                          Следующее выполнение
+                        </span>
+
+                        {nextMileage && (
+                          <>
+                            <strong>
+                              {nextMileage.toLocaleString(
+                                'lt-LT'
+                              )}{' '}
+                              км
+                            </strong>
+
+                            <span
+                              className={`maintenance-card-remaining ${status}`}
+                            >
+                              {formatMaintenanceMileageRemaining(
+                                task
+                              )}
+                            </span>
+                          </>
+                        )}
+
+                        {nextDate && (
+                          <>
+                            <strong>
+                              {formatDate(
+                                nextDate
+                              )}
+                            </strong>
+
+                            <span
+                              className={`maintenance-card-remaining ${getMaintenanceDateStatus(
+                                task
+                              )}`}
+                            >
+                              {formatMaintenanceDateRemaining(
+                                task
+                              )}
+                            </span>
+                          </>
+                        )}
+
+                        {!nextMileage &&
+                          !nextDate && (
+                            <strong>—</strong>
+                          )}
+                      </div>
+                    </div>
+
+                    {task.note && (
+                      <div className="maintenance-card-note">
+                        <span className="maintenance-detail-label">
+                          Примечание
+                        </span>
+
+                        <div>
+                          {task.note}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="maintenance-card-actions">
+                      <button
+                        type="button"
+                        className="edit-button"
+                        onClick={() =>
+                          handleEditMaintenance(
+                            task
+                          )
+                        }
+                      >
+                        Редактировать
+                      </button>
+
+                      <button
+                        type="button"
+                        className="delete-button"
+                        onClick={() =>
+                          handleDeleteMaintenance(
+                            task
+                          )
+                        }
+                      >
+                        Удалить
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </article>
+            )
+          }
         )}
-      </span>
+
+        {maintenanceTasks.length ===
+          0 && (
+          <p className="maintenance-cards-empty">
+            Регламентные работы пока не
+            добавлены.
+          </p>
+        )}
+      </div>
     )}
-  </div>
-</td>
-  <td>
-  {linkedPart ? (
-    <>
-      {linkedPart.name}
-
-      {linkedPart.manufacturer
-        ? ` — ${linkedPart.manufacturer}`
-        : ''}
-    </>
-  ) : (
-    '—'
-  )}
-</td>
-                    <td>
-  {task.lastServiceDate && (
-    <div>
-      {formatDate(
-        task.lastServiceDate
-      )}
-    </div>
-  )}
-
-  {task.lastServiceMileage && (
-    <div>
-      {Number(
-        task.lastServiceMileage
-      ).toLocaleString(
-        'lt-LT'
-      )} км
-    </div>
-  )}
-
-  {!task.lastServiceDate &&
-    !task.lastServiceMileage &&
-    '—'}
-</td>
-
-                    <td>
-  {interval && (
-    <div>
-      {interval.toLocaleString(
-        'lt-LT'
-      )} км
-    </div>
-  )}
-
-  {task.intervalMonths && (
-    <div>
-      {Number(
-        task.intervalMonths
-      ).toLocaleString(
-        'lt-LT'
-      )} мес.
-    </div>
-  )}
-
-  {!interval &&
-    !task.intervalMonths &&
-    '—'}
-</td>
-                    <td
-                      className={`replacement-mileage ${getMaintenanceStatus(
-  task
-)}`}
-                    >
-                      {nextMileage && (
-  <div>
-    <div>
-      {nextMileage.toLocaleString(
-        'lt-LT'
-      )} км
-    </div>
-
-    <div className="maintenance-remaining-hint">
-      {formatMaintenanceMileageRemaining(
-        task
-      )}
-    </div>
-  </div>
+  </section>
 )}
 
-{nextDate && (
-  <div className="maintenance-date-block">
-    <div>
-      {formatDate(nextDate)}
-    </div>
-
-    <div
-      className={`maintenance-date-remaining ${getMaintenanceDateStatus(
-        task
-      )}`}
-    >
-      {formatMaintenanceDateRemaining(
-        task
-      )}
-    </div>
-  </div>
-)}
-
-{!nextMileage &&
-  !nextDate &&
-  '—'}
-                    </td>
-
-                    <td className="expense-actions">
-  <button
-    type="button"
-    className="edit-button"
-    onClick={() =>
-      handleEditMaintenance(task)
-    }
-  >
-    Редактировать
-  </button>
-
-  <button
-    type="button"
-    className="delete-button"
-    onClick={() =>
-      handleDeleteMaintenance(task)
-    }
-  >
-    Удалить
-  </button>
-</td>
-
-                  </tr>
-                )
-              })}
-
-              {maintenanceTasks.length === 0 && (
-                <tr>
-                  <td colSpan="6">
-                    Регламентные работы пока не добавлены.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  )}
 {citroenSection === 'current' && (
     <section className="expenses-section">
       <div className="section-header">

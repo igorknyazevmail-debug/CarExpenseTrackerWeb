@@ -1567,3 +1567,202 @@ white-space: nowrap;
     min-width: 0;
   }
 }
+
+/* ===== Карточки регламентных работ ===== */
+
+.maintenance-card-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.maintenance-card {
+  border-bottom: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+.maintenance-card:last-child {
+  border-bottom: none;
+}
+
+.maintenance-card-summary {
+  width: 100%;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto
+    24px;
+  align-items: center;
+  gap: 20px;
+
+  padding: 20px 26px;
+
+  border: 0;
+  background: transparent;
+  color: inherit;
+
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+
+.maintenance-card-summary:hover {
+  background: #f8fafc;
+}
+
+.maintenance-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.maintenance-card-title strong {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.maintenance-card-next {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.maintenance-card.overdue
+  .maintenance-card-next {
+  color: #dc2626;
+}
+
+.maintenance-card.soon
+  .maintenance-card-next {
+  color: #b45309;
+}
+
+.maintenance-card-arrow {
+  display: inline-block;
+  font-size: 18px;
+  transition: transform 0.2s ease;
+}
+
+.maintenance-card-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+.maintenance-card-details {
+  padding: 4px 26px 24px;
+  background: #f8fafc;
+  border-top: 1px solid #edf2f7;
+}
+
+.maintenance-detail-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 24px;
+  padding-top: 20px;
+}
+
+.maintenance-detail-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.maintenance-detail-label {
+  color: #64748b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.maintenance-card-remaining {
+  font-size: 13px;
+}
+
+.maintenance-card-remaining.soon {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.maintenance-card-remaining.overdue {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.maintenance-card-note {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  white-space: pre-wrap;
+}
+
+.maintenance-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+
+  margin-top: 20px;
+}
+
+.maintenance-cards-empty {
+  margin: 0;
+  padding: 24px;
+  color: #64748b;
+}
+
+@media (max-width: 800px) {
+  .maintenance-card-summary {
+    grid-template-columns:
+      minmax(0, 1fr)
+      20px;
+
+    gap: 12px;
+    padding: 18px;
+  }
+
+  .maintenance-card-next {
+    grid-column: 1;
+    align-items: flex-start;
+    margin-top: 4px;
+  }
+
+  .maintenance-card-arrow {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+
+  .maintenance-card-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .maintenance-card-details {
+    padding: 4px 18px 20px;
+  }
+
+  .maintenance-detail-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+}
+
+@media (max-width: 500px) {
+  .maintenance-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .maintenance-card-actions {
+    flex-direction: column;
+  }
+
+  .maintenance-card-actions button {
+    width: 100%;
+  }
+}
