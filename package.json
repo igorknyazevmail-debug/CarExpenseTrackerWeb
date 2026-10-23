@@ -1,7 +1,7 @@
 {
   "name": "carexpensetrackerweb",
   "private": true,
-  "version": "3.8.0",
+  "version": "3.9.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,7 +12,8 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "read-excel-file": "^9.3.12"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",

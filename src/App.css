@@ -2003,3 +2003,27 @@ white-space: nowrap;
     grid-template-columns: 1fr;
   }
 }
+
+.fuel-period-section {
+  display: grid;
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(210px, 1fr)
+    );
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+@media (max-width: 1050px) {
+  .fuel-period-section {
+    grid-template-columns:
+      1fr 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  .fuel-period-section {
+    grid-template-columns: 1fr;
+  }
+}

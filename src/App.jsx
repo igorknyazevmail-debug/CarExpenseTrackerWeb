@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+
+import { readSheet } from 'read-excel-file/browser'
+
 import './App.css'
 import AuthScreen from './AuthScreen'
 import { supabase } from './lib/supabaseClient'
@@ -7,6 +15,7 @@ import {
     getCars,
   getAllExpenses,
   saveExpense,
+  importExpenses,
   deleteExpense,
   getInstalledParts,
   getInstalledPartPhotoUrl,
@@ -58,8 +67,11 @@ const initialExpenses = [
   },
 ]
 const STORAGE_KEY = 'car-expense-tracker-expenses'
+
 const carCategories = [
   'Запчасти',
+  'Материалы',
+  'Тюнинг',
   'Ремонт',
   'ТО',
   'Топливо',
@@ -70,6 +82,7 @@ const carCategories = [
   'Налоги и сборы',
   'Прочее',
 ]
+
 const installedPartCategories = [
   'Двигатель',
   'Охлаждение',
@@ -166,6 +179,233 @@ function InstalledPartPhoto({
       </button>
     </div>
   )
+}
+
+function normalizeExcelText(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+}
+
+function excelRowsToObjects(rows) {
+  if (!Array.isArray(rows)) {
+    return []
+  }
+
+  const headerIndex =
+    rows.findIndex((row) => {
+      const cells =
+        row.map(normalizeExcelText)
+
+      return (
+        cells.includes('дата') &&
+        cells.some(
+          (cell) =>
+            cell === 'сумма' ||
+            cell === 'стоимость'
+        )
+      )
+    })
+
+  if (headerIndex < 0) {
+    return []
+  }
+
+  const headers =
+    rows[headerIndex].map(
+      (value) =>
+        String(value ?? '').trim()
+    )
+
+  return rows
+    .slice(headerIndex + 1)
+    .map((row) => {
+      const object = {}
+
+      headers.forEach(
+        (header, index) => {
+          if (!header) {
+            return
+          }
+
+          object[header] =
+            row[index] ?? ''
+        }
+      )
+
+      return object
+    })
+}
+
+function getExcelCell(
+  row,
+  possibleNames
+) {
+  const keys =
+    Object.keys(row)
+
+  for (
+    const name
+    of possibleNames
+  ) {
+    const normalizedName =
+      normalizeExcelText(name)
+
+    const foundKey =
+      keys.find(
+        (key) =>
+          normalizeExcelText(
+            key
+          ) === normalizedName
+      )
+
+    if (foundKey !== undefined) {
+      return row[foundKey]
+    }
+  }
+
+  return ''
+}
+
+function parseExcelNumber(value) {
+  if (
+    value === null ||
+    value === undefined ||
+    value === ''
+  ) {
+    return null
+  }
+
+  if (typeof value === 'number') {
+    return Number.isFinite(value)
+      ? value
+      : null
+  }
+
+  const normalized =
+    String(value)
+      .replace(/\u00a0/g, '')
+      .replace(/\s/g, '')
+      .replace(',', '.')
+
+  const number =
+    Number(normalized)
+
+  return Number.isFinite(number)
+    ? number
+    : null
+}
+
+function parseExcelDate(value) {
+  if (!value) {
+    return null
+  }
+
+  if (
+    value instanceof Date &&
+    !Number.isNaN(
+      value.getTime()
+    )
+  ) {
+    const year =
+      value.getFullYear()
+
+    const month =
+      String(
+        value.getMonth() + 1
+      ).padStart(2, '0')
+
+    const day =
+      String(
+        value.getDate()
+      ).padStart(2, '0')
+
+    return `${year}-${month}-${day}`
+  }
+
+  const text =
+    String(value).trim()
+
+  const isoMatch =
+    text.match(
+      /^(\d{4})-(\d{1,2})-(\d{1,2})/
+    )
+
+  if (isoMatch) {
+    return [
+      isoMatch[1],
+      isoMatch[2]
+        .padStart(2, '0'),
+      isoMatch[3]
+        .padStart(2, '0'),
+    ].join('-')
+  }
+
+  const europeanMatch =
+    text.match(
+      /^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/
+    )
+
+  if (europeanMatch) {
+    return [
+      europeanMatch[3],
+      europeanMatch[2]
+        .padStart(2, '0'),
+      europeanMatch[1]
+        .padStart(2, '0'),
+    ].join('-')
+  }
+
+  return null
+}
+
+function parseExcelBoolean(value) {
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  const normalized =
+    normalizeExcelText(value)
+
+  return [
+    'да',
+    'yes',
+    'true',
+    '1',
+    '✓',
+    'x',
+  ].includes(normalized)
+}
+
+function getExpenseImportKey(
+  expense
+) {
+  const mileage =
+    expense.mileage == null
+      ? ''
+      : Number(expense.mileage)
+
+  const amount =
+    Number(
+      expense.amount || 0
+    ).toFixed(2)
+
+  const fuelVolume =
+    expense.category === 'Топливо' &&
+    expense.fuelVolume != null
+      ? Number(
+          expense.fuelVolume
+        ).toFixed(2)
+      : ''
+
+  return [
+    expense.date,
+    expense.category,
+    mileage,
+    amount,
+    fuelVolume,
+  ].join('|')
 }
 
 function App() {
@@ -312,6 +552,15 @@ const selectedCar =
   ) || null
 
 const [expenses, setExpenses] = useState([])
+
+const expenseImportInputRef =
+  useRef(null)
+
+const [
+  expenseImporting,
+  setExpenseImporting,
+] = useState(false)
+
 const [expensesLoading, setExpensesLoading] = useState(true)
 const [installedParts, setInstalledParts] = useState([])
 const [installedPartsLoading, setInstalledPartsLoading] = useState(true)
@@ -717,6 +966,452 @@ async function refreshExpenses() {
     )
   setExpenses(data)
 }
+
+async function handleExpenseImport(
+  event
+) {
+  const file =
+    event.target.files?.[0]
+
+  if (!file) {
+    return
+  }
+
+  const citroenCar =
+    cars.find(
+      (car) =>
+        String(
+          car.slug || ''
+        ).toLowerCase() ===
+          'citroen' ||
+        String(
+          car.name || ''
+        )
+          .toLowerCase()
+          .includes('citroen')
+    )
+
+  if (!citroenCar) {
+    window.alert(
+      'Автомобиль Citroen не найден.'
+    )
+
+    event.target.value = ''
+    return
+  }
+
+  try {
+    setExpenseImporting(true)
+
+    const fuelRawRows =
+      await readSheet(
+        file,
+        'Заправки'
+      )
+
+    const serviceRawRows =
+      await readSheet(
+        file,
+        'Сервис'
+      )
+
+    const fuelRows =
+      excelRowsToObjects(
+        fuelRawRows
+      )
+
+    const serviceRows =
+      excelRowsToObjects(
+        serviceRawRows
+      )
+
+    const importedExpenses = []
+
+    let skippedTools = 0
+    let skippedRows = 0
+
+    // Заправки
+    for (const row of fuelRows) {
+      const date =
+        parseExcelDate(
+          getExcelCell(
+            row,
+            [
+              'Дата',
+              'Дата и время',
+            ]
+          )
+        )
+
+      const mileage =
+        parseExcelNumber(
+          getExcelCell(
+            row,
+            ['Пробег']
+          )
+        )
+
+      const amount =
+        parseExcelNumber(
+          getExcelCell(
+            row,
+            [
+              'Сумма',
+              'Стоимость',
+            ]
+          )
+        )
+
+      const fuelVolume =
+        parseExcelNumber(
+          getExcelCell(
+            row,
+            [
+              'Количество',
+              'Объём',
+              'Объем',
+            ]
+          )
+        )
+
+      if (
+        !date ||
+        amount == null ||
+        amount <= 0 ||
+        fuelVolume == null ||
+        fuelVolume <= 0
+      ) {
+        skippedRows += 1
+        continue
+      }
+
+      const fuelType =
+        String(
+          getExcelCell(
+            row,
+            ['Вид топлива', 'Топливо']
+          ) || ''
+        ).trim()
+
+      const station =
+        String(
+          getExcelCell(
+            row,
+            ['АЗС', 'Заправка']
+          ) || ''
+        ).trim()
+
+      const comment =
+        String(
+          getExcelCell(
+            row,
+            [
+              'Комментарий',
+              'Примечание',
+            ]
+          ) || ''
+        ).trim()
+
+      const description =
+        [
+          fuelType,
+          station,
+          comment,
+        ]
+          .filter(Boolean)
+          .join(' · ')
+
+      const fullTank =
+        parseExcelBoolean(
+          getExcelCell(
+            row,
+            ['Полный бак', 'Полный']
+          )
+        )
+
+      importedExpenses.push({
+        date,
+        category: 'Топливо',
+        description,
+
+        mileage:
+          mileage == null
+            ? null
+            : Math.round(mileage),
+
+        fuelVolume,
+        fullTank,
+        amount,
+      })
+    }
+
+    // Сервис
+    for (
+      const row
+      of serviceRows
+    ) {
+      const serviceType =
+        normalizeExcelText(
+          getExcelCell(
+            row,
+            [
+              'Вид сервиса',
+              'Категория',
+            ]
+          )
+        )
+
+      // Инструменты полностью
+      // исключаем из импорта.
+      if (
+        serviceType.includes(
+          'инструмент'
+        )
+      ) {
+        skippedTools += 1
+        continue
+      }
+
+      const categoryMap = {
+        запчасть: 'Запчасти',
+        запчасти: 'Запчасти',
+        ремонт: 'Ремонт',
+        то: 'ТО',
+        материал: 'Материалы',
+        материалы: 'Материалы',
+        тюнинг: 'Тюнинг',
+      }
+
+      const category =
+        categoryMap[
+          serviceType
+        ]
+
+      if (!category) {
+        skippedRows += 1
+        continue
+      }
+
+      const date =
+        parseExcelDate(
+          getExcelCell(
+            row,
+            [
+              'Дата',
+              'Дата и время',
+            ]
+          )
+        )
+
+      const mileage =
+        parseExcelNumber(
+          getExcelCell(
+            row,
+            ['Пробег']
+          )
+        )
+
+      const amount =
+        parseExcelNumber(
+          getExcelCell(
+            row,
+            [
+              'Сумма',
+              'Стоимость',
+            ]
+          )
+        )
+
+      if (
+        !date ||
+        amount == null ||
+        amount <= 0
+      ) {
+        skippedRows += 1
+        continue
+      }
+
+      const name =
+        String(
+          getExcelCell(
+            row,
+            [
+              'Название',
+              'Наименование',
+            ]
+          ) || ''
+        ).trim()
+
+      const details =
+        String(
+          getExcelCell(
+            row,
+            [
+              'Виды работ и детали',
+              'Работы и детали',
+            ]
+          ) || ''
+        ).trim()
+
+      const comment =
+        String(
+          getExcelCell(
+            row,
+            [
+              'Комментарий',
+              'Примечание',
+            ]
+          ) || ''
+        ).trim()
+
+      const description =
+        [
+          name,
+          details,
+          comment,
+        ]
+          .filter(Boolean)
+          .filter(
+            (
+              value,
+              index,
+              array
+            ) =>
+              array.indexOf(
+                value
+              ) === index
+          )
+          .join(' — ')
+
+      importedExpenses.push({
+        date,
+        category,
+        description,
+
+        mileage:
+          mileage == null
+            ? null
+            : Math.round(mileage),
+
+        fuelVolume: null,
+        fullTank: false,
+        amount,
+      })
+    }
+
+    const existingExpenses =
+      await getAllExpenses(
+        citroenCar.id
+      )
+
+    const existingKeys =
+      new Set(
+        existingExpenses.map(
+          getExpenseImportKey
+        )
+      )
+
+    const fileKeys =
+      new Set()
+
+    const expensesToImport = []
+
+    let duplicates = 0
+
+    for (
+      const expense
+      of importedExpenses
+    ) {
+      const key =
+        getExpenseImportKey(
+          expense
+        )
+
+      if (
+        existingKeys.has(key) ||
+        fileKeys.has(key)
+      ) {
+        duplicates += 1
+        continue
+      }
+
+      fileKeys.add(key)
+
+      expensesToImport.push(
+        expense
+      )
+    }
+
+    const message = [
+      `Найдено расходов: ${importedExpenses.length}`,
+      `Инструменты пропущены: ${skippedTools}`,
+      `Дубликаты пропущены: ${duplicates}`,
+      `Другие пропущенные строки: ${skippedRows}`,
+      `Будет добавлено: ${expensesToImport.length}`,
+    ].join('\n')
+
+    if (
+      expensesToImport.length ===
+      0
+    ) {
+      window.alert(
+        `${message}\n\nНовых расходов для импорта нет.`
+      )
+      return
+    }
+
+    const confirmed =
+      window.confirm(
+        `${message}\n\nИмпортировать в Citroen?`
+      )
+
+    if (!confirmed) {
+      return
+    }
+
+    await importExpenses(
+      citroenCar.id,
+      expensesToImport
+    )
+
+    setSelectedCarId(
+      citroenCar.id
+    )
+
+    setCitroenSection(
+      'expenses'
+    )
+
+    const updatedExpenses =
+      await getAllExpenses(
+        citroenCar.id
+      )
+
+    setExpenses(
+      updatedExpenses
+    )
+
+    window.alert(
+      `Импорт завершён.\n\nДобавлено: ${expensesToImport.length}\nИнструменты пропущены: ${skippedTools}\nДубликаты пропущены: ${duplicates}`
+    )
+  } catch (error) {
+    console.error(
+      'Ошибка импорта Excel:',
+      error
+    )
+
+    window.alert(
+      'Не удалось импортировать Excel-файл. Откройте F12 → Console для подробностей.'
+    )
+  } finally {
+    setExpenseImporting(
+      false
+    )
+
+    event.target.value = ''
+  }
+}
+
 const [showForm, setShowForm] = useState(false)
 
 const [editingExpenseId, setEditingExpenseId] = useState(null)
@@ -938,118 +1633,222 @@ function getExpensePeriodLabel() {
   }
 }
 
-const lastFuelStats = useMemo(() => {
-  const fuelExpenses = filteredExpenses
-    .filter(
-      (expense) =>
-        expense.category === 'Топливо' &&
-        expense.fuelVolume &&
-        Number(expense.fuelVolume) > 0
+const fuelPeriodStats = useMemo(() => {
+  const now = new Date()
+
+  let startDate = null
+
+  if (expensePeriod !== 'all') {
+  const months =
+    Number(expensePeriod)
+
+    startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - months,
+      now.getDate(),
+      0,
+      0,
+      0,
+      0
     )
-    .sort((a, b) => {
-      const dateDifference =
-        new Date(`${a.date}T12:00:00`) -
-        new Date(`${b.date}T12:00:00`)
-
-      if (dateDifference !== 0) {
-        return dateDifference
-      }
-
-      return (
-        Number(a.mileage || 0) -
-        Number(b.mileage || 0)
-      )
-    })
-
- if (fuelExpenses.length === 0) {
-  return {
-    date: null,
-    mileage: null,
-    liters: null,
-    pricePerLiter: null,
-    previousConsumption: null,
   }
-}
 
-  const lastFuel =
-    fuelExpenses[fuelExpenses.length - 1]
+  const allFuelExpenses =
+    filteredExpenses
+      .filter((expense) => {
+        if (
+          expense.category !== 'Топливо' ||
+          !expense.date ||
+          !expense.fuelVolume ||
+          Number(expense.fuelVolume) <= 0 ||
+          !expense.amount ||
+          Number(expense.amount) <= 0
+        ) {
+          return false
+        }
 
-  const liters =
-    Number(lastFuel.fuelVolume)
+        return true
+      })
+      .sort((a, b) => {
+        const dateDifference =
+          new Date(
+            `${a.date}T12:00:00`
+          ) -
+          new Date(
+            `${b.date}T12:00:00`
+          )
 
-  const pricePerLiter =
-    liters > 0
-      ? Number(lastFuel.amount) / liters
+        if (dateDifference !== 0) {
+          return dateDifference
+        }
+
+        return (
+          Number(a.mileage || 0) -
+          Number(b.mileage || 0)
+        )
+      })
+
+  const periodFuelExpenses =
+    allFuelExpenses.filter(
+      (expense) => {
+        const expenseDate =
+          new Date(
+            `${expense.date}T12:00:00`
+          )
+
+        if (expenseDate > now) {
+          return false
+        }
+
+        if (
+          startDate &&
+          expenseDate < startDate
+        ) {
+          return false
+        }
+
+        return true
+      }
+    )
+
+  const totalLiters =
+    periodFuelExpenses.reduce(
+      (sum, expense) =>
+        sum +
+        Number(
+          expense.fuelVolume || 0
+        ),
+      0
+    )
+
+  const totalCost =
+    periodFuelExpenses.reduce(
+      (sum, expense) =>
+        sum +
+        Number(
+          expense.amount || 0
+        ),
+      0
+    )
+
+  const averagePrice =
+    totalLiters > 0
+      ? totalCost / totalLiters
       : null
 
-  const fullTankExpenses =
-    fuelExpenses.filter(
+  /*
+    Расход на 1 км считаем
+    только по завершённым
+    интервалам:
+    полный бак → полный бак.
+  */
+
+  const fuelWithMileage =
+    allFuelExpenses.filter(
       (expense) =>
-        expense.fullTank &&
         expense.mileage !== null &&
         expense.mileage !== undefined &&
-        Number.isFinite(Number(expense.mileage))
+        Number.isFinite(
+          Number(expense.mileage)
+        )
     )
 
-  let previousConsumption = null
+  let previousFullTankIndex =
+    null
 
-  if (fullTankExpenses.length >= 2) {
-    const lastFullTank =
-      fullTankExpenses[
-        fullTankExpenses.length - 1
-      ]
+  let completedDistance = 0
+  let completedCost = 0
 
-    const previousFullTank =
-      fullTankExpenses[
-        fullTankExpenses.length - 2
-      ]
+  for (
+    let index = 0;
+    index < fuelWithMileage.length;
+    index += 1
+  ) {
+    const expense =
+      fuelWithMileage[index]
 
-    const startIndex =
-      fuelExpenses.findIndex(
-        (expense) =>
-          expense.id === previousFullTank.id
-      )
-
-    const endIndex =
-      fuelExpenses.findIndex(
-        (expense) =>
-          expense.id === lastFullTank.id
-      )
-
-    const distance =
-      Number(lastFullTank.mileage) -
-      Number(previousFullTank.mileage)
-
-    const fuelUsed =
-      fuelExpenses
-        .slice(startIndex + 1, endIndex + 1)
-        .reduce(
-          (sum, expense) =>
-            sum +
-            Number(expense.fuelVolume || 0),
-          0
-        )
+    if (!expense.fullTank) {
+      continue
+    }
 
     if (
-      startIndex >= 0 &&
-      endIndex > startIndex &&
-      distance > 0 &&
-      fuelUsed > 0
+      previousFullTankIndex !== null
     ) {
-      previousConsumption =
-        (fuelUsed / distance) * 100
+      const previousFullTank =
+        fuelWithMileage[
+          previousFullTankIndex
+        ]
+
+      const distance =
+        Number(expense.mileage) -
+        Number(
+          previousFullTank.mileage
+        )
+
+      const intervalCost =
+        fuelWithMileage
+          .slice(
+            previousFullTankIndex + 1,
+            index + 1
+          )
+          .reduce(
+            (sum, fuelExpense) =>
+              sum +
+              Number(
+                fuelExpense.amount || 0
+              ),
+            0
+          )
+
+      const intervalEndDate =
+        new Date(
+          `${expense.date}T12:00:00`
+        )
+
+      const intervalInPeriod =
+        intervalEndDate <= now &&
+        (
+          !startDate ||
+          intervalEndDate >=
+            startDate
+        )
+
+      if (
+        intervalInPeriod &&
+        distance > 0 &&
+        intervalCost > 0
+      ) {
+        completedDistance +=
+          distance
+
+        completedCost +=
+          intervalCost
+      }
     }
+
+    previousFullTankIndex =
+      index
   }
 
-  return {
-  date: lastFuel.date,
-  mileage: lastFuel.mileage ?? null,
-  liters,
-  pricePerLiter,
-  previousConsumption,
-}
+  const costPerKm =
+    completedDistance > 0
+      ? completedCost /
+        completedDistance
+      : null
 
-}, [filteredExpenses])
+  return {
+    totalLiters,
+    totalCost,
+    averagePrice,
+    costPerKm,
+    completedDistance,
+    refuelCount:
+      periodFuelExpenses.length,
+  }
+}, [
+  filteredExpenses,
+  expensePeriod,
+])
 
 const sortedMaintenanceTasks = useMemo(() => {
   return [...maintenanceTasks].sort((a, b) => {
@@ -2798,7 +3597,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-<span className="app-version">v3.8.0</span>
+<span className="app-version">v3.9.0</span>
 </div>
 </div>
 <div className="header-selects">
@@ -2873,13 +3672,42 @@ if (expensesLoading) {
 
 <div className="header-actions">
   {citroenSection === 'expenses' && (
+  <>
     <button
       className="primary-button"
       onClick={handleOpenAddForm}
     >
       + Добавить расход
     </button>
-  )}
+
+    <input
+      ref={expenseImportInputRef}
+      type="file"
+      accept=".xlsx"
+      hidden
+      onChange={
+        handleExpenseImport
+      }
+    />
+
+    <button
+      type="button"
+      className="secondary-button"
+      disabled={
+        expenseImporting
+      }
+      onClick={() =>
+        expenseImportInputRef
+          .current
+          ?.click()
+      }
+    >
+      {expenseImporting
+        ? 'Импорт...'
+        : 'Импорт Excel'}
+    </button>
+  </>
+)}
 
 {citroenSection === 'parts' && (
   <button
@@ -5022,48 +5850,20 @@ if (expensesLoading) {
 </section>
 
 <h2 className="fuel-stats-title">
-  Последняя заправка
+  Топливо
 </h2>
 
-{lastFuelStats.date && (
-  <p className="fuel-stats-meta">
-    {formatDate(lastFuelStats.date)}
-
-    {lastFuelStats.mileage != null && (
-      <>
-        {' • '}
-        {Number(
-          lastFuelStats.mileage
-        ).toLocaleString('lt-LT')}{' '}
-        км
-      </>
-    )}
-  </p>
-)}
-
-<section className="stats fuel-stats">
-  <article className="stat-card">
-    <span>Заправлено</span>
+<section className="fuel-period-section">
+  
+  <article className="stat-card expense-period-total">
+    <span>
+      Средняя цена за литр
+    </span>
 
     <strong>
-      {lastFuelStats.liters != null
-        ? `${lastFuelStats.liters.toLocaleString(
-            'lt-LT',
-            {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 2,
-            }
-          )} л`
-        : '—'}
-    </strong>
-  </article>
-
-  <article className="stat-card">
-    <span>Цена за литр</span>
-
-    <strong>
-      {lastFuelStats.pricePerLiter != null
-        ? `${lastFuelStats.pricePerLiter.toLocaleString(
+      {fuelPeriodStats.averagePrice !=
+      null
+        ? `${fuelPeriodStats.averagePrice.toLocaleString(
             'lt-LT',
             {
               minimumFractionDigits: 3,
@@ -5072,22 +5872,70 @@ if (expensesLoading) {
           )} €/л`
         : '—'}
     </strong>
+
+    {fuelPeriodStats.totalLiters >
+      0 && (
+      <small className="expense-distance">
+        Заправлено:{' '}
+        {fuelPeriodStats.totalLiters.toLocaleString(
+          'lt-LT',
+          {
+            maximumFractionDigits: 2,
+          }
+        )}{' '}
+        л
+      </small>
+    )}
   </article>
 
-  <article className="stat-card">
-    <span>Предыдущий расход</span>
+  <article className="stat-card expense-period-total">
+    <span>
+      Расходы на топливо
+    </span>
 
     <strong>
-      {lastFuelStats.previousConsumption != null
-        ? `${lastFuelStats.previousConsumption.toLocaleString(
+      {formatMoney(
+        fuelPeriodStats.totalCost
+      )}
+    </strong>
+
+    {fuelPeriodStats.refuelCount >
+      0 && (
+      <small className="expense-distance">
+        Заправок:{' '}
+        {fuelPeriodStats.refuelCount}
+      </small>
+    )}
+  </article>
+
+  <article className="stat-card expense-period-total">
+    <span>
+      Расход на 1 км
+    </span>
+
+    <strong>
+      {fuelPeriodStats.costPerKm !=
+      null
+        ? `${fuelPeriodStats.costPerKm.toLocaleString(
             'lt-LT',
             {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
+              minimumFractionDigits: 3,
+              maximumFractionDigits: 3,
             }
-          )} л/100 км`
+          )} €/км`
         : '—'}
     </strong>
+
+    {fuelPeriodStats.completedDistance >
+      0 && (
+      <small className="expense-distance">
+        Учтено:{' '}
+        {fuelPeriodStats.completedDistance.toLocaleString(
+          'lt-LT'
+        )}{' '}
+        км
+      </small>
+    )}
   </article>
 </section>
 

@@ -273,6 +273,65 @@ amount: Number(expense.amount),
   return data.id
 }
 
+export async function importExpenses(
+  carId,
+  expenses
+) {
+  const targetCarId =
+    requireCarId(carId)
+
+  if (
+    !Array.isArray(expenses) ||
+    expenses.length === 0
+  ) {
+    return []
+  }
+
+  const rows = expenses.map(
+    (expense) => ({
+      car_id: targetCarId,
+      expense_date: expense.date,
+      category: expense.category,
+      description:
+        expense.description || '',
+      mileage:
+        expense.mileage == null
+          ? null
+          : Number(expense.mileage),
+
+      fuel_volume_l:
+        expense.category === 'Топливо' &&
+        expense.fuelVolume != null
+          ? Number(expense.fuelVolume)
+          : null,
+
+      is_full_tank:
+        expense.category === 'Топливо'
+          ? Boolean(expense.fullTank)
+          : false,
+
+      amount:
+        Number(expense.amount),
+    })
+  )
+
+  const { data, error } =
+    await supabase
+      .from('expenses')
+      .insert(rows)
+      .select('id')
+
+  if (error) {
+    console.error(
+      'Ошибка импорта расходов:',
+      error
+    )
+    throw error
+  }
+
+  return data || []
+}
+
 export async function deleteExpense(expenseId) {
   const { error } = await supabase
     .from('expenses')
