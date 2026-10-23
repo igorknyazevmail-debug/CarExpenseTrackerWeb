@@ -1766,3 +1766,240 @@ white-space: nowrap;
     width: 100%;
   }
 }
+
+/* ===== Период расходов ===== */
+
+.expense-period-section {
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 300px)
+    minmax(220px, 1fr)
+    minmax(220px, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.expense-distance {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.expense-period-control,
+.expense-period-total {
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.expense-period-control {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.expense-period-control span {
+  font-size: 14px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.expense-period-control select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  background: #fff;
+  font: inherit;
+}
+
+.expense-period-total {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+}
+
+.expense-period-total span {
+  color: #64748b;
+}
+
+.expense-period-total strong {
+  font-size: 26px;
+}
+
+@media (max-width: 650px) {
+  .expense-period-section {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ===== Карточки расходов ===== */
+
+.expense-card-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.expense-card {
+  background: #fff;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.expense-card:last-child {
+  border-bottom: none;
+}
+
+.expense-card-summary {
+  width: 100%;
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto
+    22px;
+  align-items: center;
+  gap: 18px;
+
+  padding: 18px 24px;
+
+  border: 0;
+  background: transparent;
+  color: inherit;
+
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.expense-card-summary:hover {
+  background: #f8fafc;
+}
+
+.expense-card-main {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-width: 0;
+}
+
+.expense-card-date {
+  min-width: 92px;
+  color: #475569;
+}
+
+.expense-card-category {
+  font-weight: 500;
+}
+
+.expense-card-amount {
+  white-space: nowrap;
+  font-size: 17px;
+}
+
+.expense-card-arrow {
+  display: inline-block;
+  font-size: 18px;
+  transition: transform 0.2s ease;
+}
+
+.expense-card-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+.expense-card-details {
+  padding: 20px 24px 22px;
+  background: #f8fafc;
+  border-top: 1px solid #edf2f7;
+}
+
+.expense-detail-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.expense-detail-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.expense-detail-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.expense-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.expense-cards-empty {
+  margin: 0;
+  padding: 24px;
+  color: #64748b;
+}
+
+@media (max-width: 650px) {
+  .expense-card-summary {
+    grid-template-columns:
+      minmax(0, 1fr)
+      auto
+      18px;
+
+    gap: 10px;
+    padding: 16px;
+  }
+
+  .expense-card-main {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+
+  .expense-card-date {
+    min-width: 0;
+    font-size: 13px;
+  }
+
+  .expense-card-category {
+    font-size: 15px;
+  }
+
+  .expense-card-amount {
+    font-size: 16px;
+  }
+
+  .expense-card-details {
+    padding: 18px 16px;
+  }
+
+  .expense-detail-grid {
+    grid-template-columns:
+      1fr 1fr;
+    gap: 18px;
+  }
+
+  .expense-card-actions {
+    flex-direction: column;
+  }
+
+  .expense-card-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .expense-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}

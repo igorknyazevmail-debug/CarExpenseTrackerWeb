@@ -721,6 +721,14 @@ const [showForm, setShowForm] = useState(false)
 
 const [editingExpenseId, setEditingExpenseId] = useState(null)
 
+const [
+  expandedExpenseId,
+  setExpandedExpenseId,
+] = useState(null)
+
+const [expensePeriod, setExpensePeriod] =
+  useState('12')
+
   const [form, setForm] = useState({
   date: getTodayDate(),
   category: 'Запчасти',
@@ -731,40 +739,204 @@ const [editingExpenseId, setEditingExpenseId] = useState(null)
   amount: '',
 })
 
-const filteredExpenses =
-  expenses
+const filteredExpenses = expenses
 
-  const totals = useMemo(() => {
-    const now = new Date()
-    const currentYear = now.getFullYear()
-    const currentMonth = now.getMonth()
+const periodExpenses = useMemo(() => {
+  if (expensePeriod === 'all') {
+    return filteredExpenses
+  }
 
-    let month = 0
-    let year = 0
-    let all = 0
+  const months =
+    Number(expensePeriod)
 
-for (const expense of filteredExpenses) {
-      const expenseDate = new Date(
-        `${expense.date}T12:00:00`
+  const now = new Date()
+
+  const startDate = new Date(
+    now.getFullYear(),
+    now.getMonth() - months,
+    now.getDate(),
+    0,
+    0,
+    0,
+    0
+  )
+
+  return filteredExpenses.filter(
+    (expense) => {
+      if (!expense.date) {
+        return false
+      }
+
+      const expenseDate =
+        new Date(
+          `${expense.date}T12:00:00`
+        )
+
+      return expenseDate >= startDate
+    }
+  )
+}, [
+  filteredExpenses,
+  expensePeriod,
+])
+
+const periodTotal = useMemo(() => {
+  return periodExpenses.reduce(
+    (sum, expense) =>
+      sum + Number(expense.amount || 0),
+    0
+  )
+}, [periodExpenses])
+
+const periodMileageStats = useMemo(() => {
+  const now = new Date()
+
+  const mileageEntries =
+    filteredExpenses
+      .filter(
+        (expense) =>
+          expense.date &&
+          expense.mileage !== null &&
+          expense.mileage !== undefined &&
+          expense.mileage !== '' &&
+          Number.isFinite(
+            Number(expense.mileage)
+          )
+      )
+      .map((expense) => ({
+        date: new Date(
+          `${expense.date}T12:00:00`
+        ),
+        mileage: Number(
+          expense.mileage
+        ),
+      }))
+      .sort((a, b) => {
+        const dateDifference =
+          a.date - b.date
+
+        if (dateDifference !== 0) {
+          return dateDifference
+        }
+
+        return (
+          a.mileage - b.mileage
+        )
+      })
+
+  if (mileageEntries.length < 2) {
+    return {
+      distanceKm: null,
+      costPerKm: null,
+    }
+  }
+
+  let startEntry = null
+
+  if (expensePeriod === 'all') {
+    startEntry =
+      mileageEntries[0]
+  } else {
+    const months =
+      Number(expensePeriod)
+
+    const startDate = new Date(
+      now.getFullYear(),
+      now.getMonth() - months,
+      now.getDate(),
+      0,
+      0,
+      0,
+      0
+    )
+
+    const beforeStart =
+      mileageEntries.filter(
+        (entry) =>
+          entry.date <= startDate
       )
 
-      all += expense.amount
-
-      if (expenseDate.getFullYear() === currentYear) {
-        year += expense.amount
-
-        if (expenseDate.getMonth() === currentMonth) {
-          month += expense.amount
-        }
-      }
+    if (beforeStart.length > 0) {
+      startEntry =
+        beforeStart[
+          beforeStart.length - 1
+        ]
+    } else {
+      startEntry =
+        mileageEntries.find(
+          (entry) =>
+            entry.date >= startDate &&
+            entry.date <= now
+        ) || null
     }
+  }
 
+  const endEntries =
+    mileageEntries.filter(
+      (entry) =>
+        entry.date <= now
+    )
+
+  const endEntry =
+    endEntries.length > 0
+      ? endEntries[
+          endEntries.length - 1
+        ]
+      : null
+
+  if (!startEntry || !endEntry) {
     return {
-      month,
-      year,
-      all,
+      distanceKm: null,
+      costPerKm: null,
     }
-}, [filteredExpenses])
+  }
+
+  const distanceKm =
+    endEntry.mileage -
+    startEntry.mileage
+
+  if (
+    !Number.isFinite(distanceKm) ||
+    distanceKm <= 0
+  ) {
+    return {
+      distanceKm: null,
+      costPerKm: null,
+    }
+  }
+
+  return {
+    distanceKm,
+    costPerKm:
+      periodTotal / distanceKm,
+  }
+}, [
+  filteredExpenses,
+  expensePeriod,
+  periodTotal,
+])
+
+function getExpensePeriodLabel() {
+  switch (expensePeriod) {
+    case '1':
+      return 'За 1 месяц'
+
+    case '3':
+      return 'За 3 месяца'
+
+    case '6':
+      return 'За 6 месяцев'
+
+    case '12':
+      return 'За 12 месяцев'
+
+    case 'all':
+      return 'За всё время'
+
+    default:
+      return 'Расходы'
+  }
+}
 
 const lastFuelStats = useMemo(() => {
   const fuelExpenses = filteredExpenses
@@ -2626,7 +2798,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-<span className="app-version">v3.7.0</span>
+<span className="app-version">v3.8.0</span>
 </div>
 </div>
 <div className="header-selects">
@@ -4773,28 +4945,81 @@ if (expensesLoading) {
 
 {citroenSection === 'expenses' && (
   <>
-      <section className="stats">
-        <article className="stat-card">
-          <span>Этот месяц</span>
-          <strong>
-            {formatMoney(totals.month)}
-          </strong>
-        </article>
+      <section className="expense-period-section">
+  <div className="expense-period-control">
+    <span>Период</span>
 
-        <article className="stat-card">
-          <span>Этот год</span>
-          <strong>
-            {formatMoney(totals.year)}
-          </strong>
-        </article>
+    <select
+      value={expensePeriod}
+      onChange={(event) =>
+        setExpensePeriod(
+          event.target.value
+        )
+      }
+    >
+      <option value="1">
+        1 месяц
+      </option>
 
-        <article className="stat-card">
-          <span>Всего</span>
-          <strong>
-            {formatMoney(totals.all)}
-          </strong>
-        </article>
-      </section>
+      <option value="3">
+        3 месяца
+      </option>
+
+      <option value="6">
+        6 месяцев
+      </option>
+
+      <option value="12">
+        12 месяцев
+      </option>
+
+      <option value="all">
+        Всё время
+      </option>
+    </select>
+  </div>
+
+  <article className="stat-card expense-period-total">
+    <span>
+      {getExpensePeriodLabel()}
+    </span>
+
+    <strong>
+      {formatMoney(periodTotal)}
+    </strong>
+  </article>
+
+  <article className="stat-card expense-period-total">
+  <span>
+    Расходы на 1 км
+  </span>
+
+  <strong>
+    {periodMileageStats.costPerKm !=
+    null
+      ? `${periodMileageStats.costPerKm.toLocaleString(
+          'lt-LT',
+          {
+            minimumFractionDigits: 3,
+            maximumFractionDigits: 3,
+          }
+        )} €/км`
+      : '—'}
+  </strong>
+
+  {periodMileageStats.distanceKm !=
+    null && (
+    <small className="expense-distance">
+      Пройдено:{' '}
+      {periodMileageStats.distanceKm.toLocaleString(
+        'lt-LT'
+      )}{' '}
+      км
+    </small>
+  )}
+</article>
+
+</section>
 
 <h2 className="fuel-stats-title">
   Последняя заправка
@@ -4871,100 +5096,201 @@ if (expensesLoading) {
           <h2>Последние расходы</h2>
         </div>
 
-        <div className="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Дата</th>
-                <th>Категория</th>
-                <th>Описание</th>
-<th>Пробег</th>
-<th>Объём</th>
-<th>€/л</th>
-<th>Бак</th>
-                <th>Сумма</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
+        <div className="expense-card-list">
+  {periodExpenses.map((expense) => {
+    const isExpanded =
+      expandedExpenseId === expense.id
 
-            <tbody>
-           {filteredExpenses.map((expense) => (
-                <tr key={expense.id}>
-                  <td>{formatDate(expense.date)}</td>
-                  <td>{expense.category}</td>
-                  <td>{expense.description}</td>
+    const isFuel =
+      expense.category === 'Топливо'
 
-              <td>
-  {expense.mileage
-    ? `${expense.mileage.toLocaleString('lt-LT')} км`
-    : '—'}
-</td>
+    const fuelVolume =
+      Number(expense.fuelVolume)
 
-<td>
-  {expense.category === 'Топливо' &&
-  expense.fuelVolume
-    ? `${expense.fuelVolume.toLocaleString(
-        'lt-LT',
-        {
-          maximumFractionDigits: 2,
-        }
-      )} л`
-    : '—'}
-</td>
+    const fuelPricePerLiter =
+      isFuel &&
+      fuelVolume > 0 &&
+      Number(expense.amount) > 0
+        ? Number(expense.amount) /
+          fuelVolume
+        : null
 
-<td>
-  {expense.category === 'Топливо' &&
-  expense.fuelVolume &&
-  expense.amount
-    ? `${(
-        expense.amount /
-        expense.fuelVolume
-      ).toLocaleString('lt-LT', {
-        minimumFractionDigits: 3,
-        maximumFractionDigits: 3,
-      })} €/л`
-    : '—'}
-</td>
+    return (
+      <article
+        key={expense.id}
+        className="expense-card"
+      >
+        <button
+          type="button"
+          className="expense-card-summary"
+          onClick={() =>
+            setExpandedExpenseId(
+              isExpanded
+                ? null
+                : expense.id
+            )
+          }
+        >
+          <div className="expense-card-main">
+            <span className="expense-card-date">
+              {formatDate(expense.date)}
+            </span>
 
-<td>
-  {expense.category === 'Топливо' &&
-  expense.fullTank ? (
-    <span
-      className="full-tank-badge"
-      title="Полный бак"
-      aria-label="Полный бак"
-    >
-      ✓
-    </span>
-  ) : (
-    '—'
+            <strong className="expense-card-category">
+              {expense.category}
+            </strong>
+          </div>
+
+          <strong className="expense-card-amount">
+            {formatMoney(
+              expense.amount
+            )}
+          </strong>
+
+          <span
+            className={`expense-card-arrow ${
+              isExpanded
+                ? 'expanded'
+                : ''
+            }`}
+          >
+            ▾
+          </span>
+        </button>
+
+        {isExpanded && (
+          <div className="expense-card-details">
+            <div className="expense-detail-grid">
+              <div>
+                <span className="expense-detail-label">
+                  Описание
+                </span>
+
+                <strong>
+                  {expense.description ||
+                    '—'}
+                </strong>
+              </div>
+
+              <div>
+                <span className="expense-detail-label">
+                  Пробег
+                </span>
+
+                <strong>
+                  {expense.mileage != null &&
+                  expense.mileage !== ''
+                    ? `${Number(
+                        expense.mileage
+                      ).toLocaleString(
+                        'lt-LT'
+                      )} км`
+                    : '—'}
+                </strong>
+              </div>
+
+              <div>
+                <span className="expense-detail-label">
+                  Сумма
+                </span>
+
+                <strong>
+                  {formatMoney(
+                    expense.amount
+                  )}
+                </strong>
+              </div>
+
+              {isFuel && (
+                <>
+                  <div>
+                    <span className="expense-detail-label">
+                      Объём
+                    </span>
+
+                    <strong>
+                      {fuelVolume > 0
+                        ? `${fuelVolume.toLocaleString(
+                            'lt-LT',
+                            {
+                              maximumFractionDigits: 2,
+                            }
+                          )} л`
+                        : '—'}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span className="expense-detail-label">
+                      Цена за литр
+                    </span>
+
+                    <strong>
+                      {fuelPricePerLiter !=
+                      null
+                        ? `${fuelPricePerLiter.toLocaleString(
+                            'lt-LT',
+                            {
+                              minimumFractionDigits: 3,
+                              maximumFractionDigits: 3,
+                            }
+                          )} €/л`
+                        : '—'}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <span className="expense-detail-label">
+                      Полный бак
+                    </span>
+
+                    <strong>
+                      {expense.fullTank
+                        ? 'Да'
+                        : 'Нет'}
+                    </strong>
+                  </div>
+                </>
+              )}
+            </div>
+
+            <div className="expense-card-actions">
+              <button
+                type="button"
+                className="edit-button"
+                onClick={() =>
+                  handleEditExpense(
+                    expense
+                  )
+                }
+              >
+                Редактировать
+              </button>
+
+              <button
+                type="button"
+                className="delete-button"
+                onClick={() =>
+                  handleDeleteExpense(
+                    expense
+                  )
+                }
+              >
+                Удалить
+              </button>
+            </div>
+          </div>
+        )}
+      </article>
+    )
+  })}
+
+  {periodExpenses.length === 0 && (
+    <p className="expense-cards-empty">
+      За выбранный период расходов нет.
+    </p>
   )}
-</td>
-
-                  <td>
-                    {formatMoney(expense.amount)}
-                  </td>
-                  <td className="expense-actions">
-                    <button
-  type="button"
-  className="edit-button"
-  onClick={() => handleEditExpense(expense)}
->
-  Редактировать
-</button>
-  <button
-    type="button"
-    className="delete-button"
-    onClick={() => handleDeleteExpense(expense)}
-  >
-    Удалить
-  </button>
-</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+</div>
           </section>
 
     </>
