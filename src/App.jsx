@@ -977,43 +977,53 @@ async function handleExpenseImport(
     return
   }
 
-  const citroenCar =
-    cars.find(
-      (car) =>
-        String(
-          car.slug || ''
-        ).toLowerCase() ===
-          'citroen' ||
-        String(
-          car.name || ''
-        )
-          .toLowerCase()
-          .includes('citroen')
-    )
+  const importCar =
+  cars.find(
+    (car) =>
+      car.id === selectedCarId
+  )
 
-  if (!citroenCar) {
-    window.alert(
-      'Автомобиль Citroen не найден.'
-    )
+if (!importCar) {
+  window.alert(
+    'Автомобиль не выбран.'
+  )
 
-    event.target.value = ''
-    return
-  }
+  event.target.value = ''
+  return
+}
 
   try {
     setExpenseImporting(true)
 
     const fuelRawRows =
-      await readSheet(
-        file,
-        'Заправки'
-      )
+  await readSheet(
+    file,
+    'Заправки'
+  )
 
-    const serviceRawRows =
-      await readSheet(
-        file,
-        'Сервис'
-      )
+const serviceRawRows =
+  await readSheet(
+    file,
+    'Сервис'
+  )
+
+let otherRawRows = []
+
+try {
+  otherRawRows =
+    await readSheet(
+      file,
+      'Другие расходы'
+    )
+} catch (error) {
+  /*
+    Старые файлы Citroen
+    этого листа не имеют.
+  */
+  console.info(
+    'Лист «Другие расходы» отсутствует.'
+  )
+}
 
     const fuelRows =
       excelRowsToObjects(
@@ -1024,6 +1034,11 @@ async function handleExpenseImport(
       excelRowsToObjects(
         serviceRawRows
       )
+
+      const otherRows =
+  excelRowsToObjects(
+    otherRawRows
+  )
 
     const importedExpenses = []
 
@@ -1173,14 +1188,23 @@ async function handleExpenseImport(
       }
 
       const categoryMap = {
-        запчасть: 'Запчасти',
-        запчасти: 'Запчасти',
-        ремонт: 'Ремонт',
-        то: 'ТО',
-        материал: 'Материалы',
-        материалы: 'Материалы',
-        тюнинг: 'Тюнинг',
-      }
+  запчасть: 'Запчасти',
+  запчасти: 'Запчасти',
+
+  ремонт: 'Ремонт',
+  замена: 'Ремонт',
+  диагностика: 'Ремонт',
+
+  то: 'ТО',
+  'то-5': 'ТО',
+
+  материал: 'Материалы',
+  материалы: 'Материалы',
+
+  тюнинг: 'Тюнинг',
+
+  шиномонтаж: 'Шины',
+}
 
       const category =
         categoryMap[
@@ -1299,48 +1323,199 @@ async function handleExpenseImport(
       })
     }
 
+// Другие расходы
+for (
+  const row
+  of otherRows
+) {
+  const date =
+    parseExcelDate(
+      getExcelCell(
+        row,
+        ['Дата']
+      )
+    )
+
+  const mileage =
+    parseExcelNumber(
+      getExcelCell(
+        row,
+        ['Пробег']
+      )
+    )
+
+  const amount =
+    parseExcelNumber(
+      getExcelCell(
+        row,
+        ['Сумма']
+      )
+    )
+
+  if (
+    !date ||
+    amount == null ||
+    amount <= 0
+  ) {
+    skippedRows += 1
+    continue
+  }
+
+  const name =
+    String(
+      getExcelCell(
+        row,
+        ['Название']
+      ) || ''
+    ).trim()
+
+  const place =
+    String(
+      getExcelCell(
+        row,
+        ['Место']
+      ) || ''
+    ).trim()
+
+  const comment =
+    String(
+      getExcelCell(
+        row,
+        ['Комментарий']
+      ) || ''
+    ).trim()
+
+  const normalizedName =
+    normalizeExcelText(
+      name
+    )
+
+  const otherCategoryMap = {
+    страховка:
+      'Страховка',
+
+    мойка:
+      'Мойка',
+
+    техосмотр:
+      'Техосмотр',
+
+    'гос. то':
+      'Техосмотр',
+
+    регистрация:
+      'Налоги и сборы',
+
+    штраф:
+      'Налоги и сборы',
+
+    'к техосмотру':
+      'Прочее',
+  }
+
+  const category =
+    otherCategoryMap[
+      normalizedName
+    ] || 'Прочее'
+
+  const description =
+    [
+      name,
+      place,
+      comment,
+    ]
+      .filter(Boolean)
+      .join(' · ')
+
+  importedExpenses.push({
+    date,
+    category,
+    description,
+
+    mileage:
+      mileage == null
+        ? null
+        : Math.round(
+            mileage
+          ),
+
+    fuelVolume: null,
+    fullTank: false,
+    amount,
+  })
+}
+
     const existingExpenses =
       await getAllExpenses(
-        citroenCar.id
+        importCar.id
       )
 
-    const existingKeys =
-      new Set(
-        existingExpenses.map(
-          getExpenseImportKey
-        )
-      )
+    const existingKeyCounts =
+  new Map()
 
-    const fileKeys =
-      new Set()
+for (
+  const expense
+  of existingExpenses
+) {
+  const key =
+    getExpenseImportKey(
+      expense
+    )
 
-    const expensesToImport = []
+  existingKeyCounts.set(
+    key,
+    (
+      existingKeyCounts.get(
+        key
+      ) || 0
+    ) + 1
+  )
+}
 
-    let duplicates = 0
+const fileKeyCounts =
+  new Map()
 
-    for (
-      const expense
-      of importedExpenses
-    ) {
-      const key =
-        getExpenseImportKey(
-          expense
-        )
+const expensesToImport =
+  []
 
-      if (
-        existingKeys.has(key) ||
-        fileKeys.has(key)
-      ) {
-        duplicates += 1
-        continue
-      }
+let duplicates = 0
 
-      fileKeys.add(key)
+for (
+  const expense
+  of importedExpenses
+) {
+  const key =
+    getExpenseImportKey(
+      expense
+    )
 
-      expensesToImport.push(
-        expense
-      )
-    }
+  const existingCount =
+    existingKeyCounts.get(
+      key
+    ) || 0
+
+  const alreadySeenInFile =
+    fileKeyCounts.get(
+      key
+    ) || 0
+
+  fileKeyCounts.set(
+    key,
+    alreadySeenInFile + 1
+  )
+
+  if (
+    alreadySeenInFile <
+    existingCount
+  ) {
+    duplicates += 1
+    continue
+  }
+
+  expensesToImport.push(
+    expense
+  )
+}
 
     const message = [
       `Найдено расходов: ${importedExpenses.length}`,
@@ -1362,7 +1537,7 @@ async function handleExpenseImport(
 
     const confirmed =
       window.confirm(
-        `${message}\n\nИмпортировать в Citroen?`
+        `${message}\n\nИмпортировать в ${importCar.name}?`
       )
 
     if (!confirmed) {
@@ -1370,12 +1545,12 @@ async function handleExpenseImport(
     }
 
     await importExpenses(
-      citroenCar.id,
+      importCar.id,
       expensesToImport
     )
 
     setSelectedCarId(
-      citroenCar.id
+      importCar.id
     )
 
     setCitroenSection(
@@ -1384,7 +1559,7 @@ async function handleExpenseImport(
 
     const updatedExpenses =
       await getAllExpenses(
-        citroenCar.id
+        importCar.id
       )
 
     setExpenses(
@@ -1736,15 +1911,17 @@ const fuelPeriodStats = useMemo(() => {
       ? totalCost / totalLiters
       : null
 
-  /*
-    Расход на 1 км считаем
-    только по завершённым
-    интервалам:
-    полный бак → полный бак.
-  */
+/*
+  Для всех автомобилей одинаково:
+  стоимость топлива на 1 км =
+  расходы на топливо за период /
+  пробег между первой и последней
+  заправкой этого периода.
+*/
 
-  const fuelWithMileage =
-    allFuelExpenses.filter(
+const fuelMileageEntries =
+  periodFuelExpenses
+    .filter(
       (expense) =>
         expense.mileage !== null &&
         expense.mileage !== undefined &&
@@ -1752,99 +1929,77 @@ const fuelPeriodStats = useMemo(() => {
           Number(expense.mileage)
         )
     )
-
-  let previousFullTankIndex =
-    null
-
-  let completedDistance = 0
-  let completedCost = 0
-
-  for (
-    let index = 0;
-    index < fuelWithMileage.length;
-    index += 1
-  ) {
-    const expense =
-      fuelWithMileage[index]
-
-    if (!expense.fullTank) {
-      continue
-    }
-
-    if (
-      previousFullTankIndex !== null
-    ) {
-      const previousFullTank =
-        fuelWithMileage[
-          previousFullTankIndex
-        ]
-
-      const distance =
-        Number(expense.mileage) -
-        Number(
-          previousFullTank.mileage
-        )
-
-      const intervalCost =
-        fuelWithMileage
-          .slice(
-            previousFullTankIndex + 1,
-            index + 1
-          )
-          .reduce(
-            (sum, fuelExpense) =>
-              sum +
-              Number(
-                fuelExpense.amount || 0
-              ),
-            0
-          )
-
-      const intervalEndDate =
+    .sort((a, b) => {
+      const dateDifference =
         new Date(
-          `${expense.date}T12:00:00`
+          `${a.date}T12:00:00`
+        ) -
+        new Date(
+          `${b.date}T12:00:00`
         )
 
-      const intervalInPeriod =
-        intervalEndDate <= now &&
-        (
-          !startDate ||
-          intervalEndDate >=
-            startDate
-        )
-
-      if (
-        intervalInPeriod &&
-        distance > 0 &&
-        intervalCost > 0
-      ) {
-        completedDistance +=
-          distance
-
-        completedCost +=
-          intervalCost
+      if (dateDifference !== 0) {
+        return dateDifference
       }
-    }
 
-    previousFullTankIndex =
-      index
+      return (
+        Number(a.mileage) -
+        Number(b.mileage)
+      )
+    })
+
+let fuelDistance = null
+
+if (
+  fuelMileageEntries.length >= 2
+) {
+  const firstFuel =
+    fuelMileageEntries[0]
+
+  const lastFuel =
+    fuelMileageEntries[
+      fuelMileageEntries.length - 1
+    ]
+
+  const distance =
+    Number(lastFuel.mileage) -
+    Number(firstFuel.mileage)
+
+  if (
+    Number.isFinite(distance) &&
+    distance > 0
+  ) {
+    fuelDistance = distance
   }
+}
 
-  const costPerKm =
-    completedDistance > 0
-      ? completedCost /
-        completedDistance
-      : null
+const costPerKm =
+  fuelDistance != null &&
+  totalCost > 0
+    ? totalCost / fuelDistance
+    : null
+
+    const fuelConsumptionPer100Km =
+  fuelDistance != null &&
+  fuelDistance > 0 &&
+  totalLiters > 0
+    ? (
+        totalLiters /
+        fuelDistance
+      ) * 100
+    : null
 
   return {
-    totalLiters,
-    totalCost,
-    averagePrice,
-    costPerKm,
-    completedDistance,
-    refuelCount:
-      periodFuelExpenses.length,
-  }
+  totalLiters,
+  totalCost,
+  averagePrice,
+  costPerKm,
+  fuelConsumptionPer100Km,
+  fuelDistance,
+  refuelCount:
+    periodFuelExpenses.length,
+}
+
 }, [
   filteredExpenses,
   expensePeriod,
@@ -3597,7 +3752,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-<span className="app-version">v3.9.0</span>
+<span className="app-version">v3.10.0</span>
 </div>
 </div>
 <div className="header-selects">
@@ -5926,17 +6081,50 @@ if (expensesLoading) {
         : '—'}
     </strong>
 
-    {fuelPeriodStats.completedDistance >
-      0 && (
-      <small className="expense-distance">
-        Учтено:{' '}
-        {fuelPeriodStats.completedDistance.toLocaleString(
-          'lt-LT'
-        )}{' '}
-        км
-      </small>
-    )}
+    {fuelPeriodStats.fuelDistance !=
+  null && (
+  <small className="expense-distance">
+    Пройдено между заправками:{' '}
+    {fuelPeriodStats.fuelDistance.toLocaleString(
+      'lt-LT'
+    )}{' '}
+    км
+  </small>
+)}
+
   </article>
+
+<article className="stat-card expense-period-total">
+  <span>
+    Расход на 100 км
+  </span>
+
+  <strong>
+    {fuelPeriodStats
+      .fuelConsumptionPer100Km !=
+    null
+      ? `${fuelPeriodStats.fuelConsumptionPer100Km.toLocaleString(
+          'lt-LT',
+          {
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+          }
+        )} л/100 км`
+      : '—'}
+  </strong>
+
+  {fuelPeriodStats.fuelDistance !=
+    null && (
+    <small className="expense-distance">
+      Пройдено между заправками:{' '}
+      {fuelPeriodStats.fuelDistance.toLocaleString(
+        'lt-LT'
+      )}{' '}
+      км
+    </small>
+  )}
+</article>
+
 </section>
 
       <section className="expenses-section">

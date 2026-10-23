@@ -2008,8 +2008,8 @@ white-space: nowrap;
   display: grid;
   grid-template-columns:
     repeat(
-      3,
-      minmax(210px, 1fr)
+      4,
+      minmax(200px, 1fr)
     );
   gap: 16px;
   margin-bottom: 28px;
