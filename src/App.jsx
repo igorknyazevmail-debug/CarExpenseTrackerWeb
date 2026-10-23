@@ -1589,6 +1589,43 @@ for (
 
 const [showForm, setShowForm] = useState(false)
 
+const [
+  headerMenuOpen,
+  setHeaderMenuOpen,
+] = useState(false)
+
+const headerMenuRef =
+  useRef(null)
+
+  useEffect(() => {
+  if (!headerMenuOpen) {
+    return
+  }
+
+  function handleClickOutside(event) {
+    if (
+      headerMenuRef.current &&
+      !headerMenuRef.current.contains(
+        event.target
+      )
+    ) {
+      setHeaderMenuOpen(false)
+    }
+  }
+
+  document.addEventListener(
+    'pointerdown',
+    handleClickOutside
+  )
+
+  return () => {
+    document.removeEventListener(
+      'pointerdown',
+      handleClickOutside
+    )
+  }
+}, [headerMenuOpen])
+
 const [editingExpenseId, setEditingExpenseId] = useState(null)
 
 const [
@@ -3752,7 +3789,7 @@ if (expensesLoading) {
         <div>
 <div className="app-title-row">
 <h1>Моя машина</h1>
-<span className="app-version">v3.10.0</span>
+<span className="app-version">v3.10.1</span>
 </div>
 </div>
 <div className="header-selects">
@@ -3845,22 +3882,7 @@ if (expensesLoading) {
       }
     />
 
-    <button
-      type="button"
-      className="secondary-button"
-      disabled={
-        expenseImporting
-      }
-      onClick={() =>
-        expenseImportInputRef
-          .current
-          ?.click()
-      }
-    >
-      {expenseImporting
-        ? 'Импорт...'
-        : 'Импорт Excel'}
-    </button>
+    
   </>
 )}
 
@@ -3890,13 +3912,56 @@ if (expensesLoading) {
     + Добавить заметку
   </button>
 )}
-
+<div
+  ref={headerMenuRef}
+  className="header-more-menu"
+>
   <button
-    className="secondary-button"
-    onClick={() => supabase.auth.signOut()}
+    type="button"
+    className="header-more-button"
+    aria-label="Дополнительные действия"
+    aria-expanded={headerMenuOpen}
+    onClick={() =>
+      setHeaderMenuOpen(
+        (current) => !current
+      )
+    }
   >
-    Выйти
+    ⋮
   </button>
+
+  {headerMenuOpen && (
+    <div className="header-more-dropdown">
+      <button
+        type="button"
+        disabled={expenseImporting}
+        onClick={() => {
+          setHeaderMenuOpen(false)
+
+          expenseImportInputRef
+            .current
+            ?.click()
+        }}
+      >
+        {expenseImporting
+          ? 'Импорт...'
+          : 'Импорт Excel'}
+      </button>
+
+      <button
+        type="button"
+        className="header-menu-danger"
+        onClick={() => {
+          setHeaderMenuOpen(false)
+          supabase.auth.signOut()
+        }}
+      >
+        Выйти
+      </button>
+    </div>
+  )}
+</div>
+  
 </div>
 
       </header>
